@@ -19,7 +19,7 @@
 
 #### 6、HashMap底层数据结构
 
-> [**HashMap底层数据结构**](java/hashmap.md)
+> [**HashMap底层数据结构**](java/HashMap.md)
 
 #### 7、深入理解Redis
 
