@@ -17,3 +17,10 @@
 
 > [**springboot优雅实现统一返回**](cloud/springboot-response.md)
 
+#### 6、HashMap底层数据结构
+
+> [**HashMap底层数据结构**](java/hashmap.md)
+
+#### 7、深入理解Redis
+
+> [**深入理解Redis**](redis/redis.md)
