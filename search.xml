@@ -1,6 +1,154 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>SQL优化万能公式：5 大步骤 + 10 个案例</title>
+    <url>/2022/08/16/SQL%E4%BC%98%E5%8C%96%E4%B8%87%E8%83%BD%E5%85%AC%E5%BC%8F%EF%BC%9A5%20%E5%A4%A7%E6%AD%A5%E9%AA%A4%20+%2010%20%E4%B8%AA%E6%A1%88%E4%BE%8B-sql-you-hua-wan-neng-gong-shi-5da-bu-zhou-10ge-an-li/</url>
+    <content><![CDATA[<h2 id="1、前言"><a href="#1、前言" class="headerlink" title="1、前言"></a>1、前言</h2><p>在应用开发的早期，数据量少，开发人员开发功能时更重视功能上的实现，随着生产数据的增长，很多SQL语句开始暴露出性能问题，对生产的影响也越来越大，有时可能这些有问题的SQL就是整个系统性能的瓶颈。</p>
+<h2 id="2、SQL优化一般步骤"><a href="#2、SQL优化一般步骤" class="headerlink" title="2、SQL优化一般步骤"></a>2、SQL优化一般步骤</h2><p><strong>1、通过慢查日志等定位那些执行效率较低的SQL语句</strong></p>
+<p><strong>2、explain 分析SQL的执行计划</strong></p>
+<p>需要重点关注type、rows、filtered、extra。</p>
+<p>type由上至下，效率越来越高</p>
+<ul>
+<li>ALL 全表扫描</li>
+<li>index 索引全扫描</li>
+<li>range 索引范围扫描，常用语&lt;,&lt;&#x3D;,&gt;&#x3D;,between,in等操作</li>
+<li>ref 使用非唯一索引扫描或唯一索引前缀扫描，返回单条记录，常出现在关联查询中</li>
+<li>eq_ref 类似ref，区别在于使用的是唯一索引，使用主键的关联查询</li>
+<li>const&#x2F;system 单条记录，系统会把匹配行中的其他列作为常数处理，如主键或唯一索引查询</li>
+<li>null MySQL不访问任何表或索引，直接返回结果</li>
+<li>虽然上至下，效率越来越高，但是根据cost模型，假设有两个索引idx1(a, b, c),idx2(a, c)，SQL为”select * from t where a &#x3D; 1 and b in (1, 2) order by c”;如果走idx1，那么是type为range，如果走idx2，那么type是ref；当需要扫描的行数，使用idx2大约是idx1的5倍以上时，会用idx1，否则会用idx2</li>
+</ul>
+<p>Extra</p>
+<ul>
+<li>Using filesort：MySQL需要额外的一次传递，以找出如何按排序顺序检索行。通过根据联接类型浏览所有行并为所有匹配WHERE子句的行保存排序关键字和行的指针来完成排序。然后关键字被排序，并按排序顺序检索行。</li>
+<li>Using temporary：使用了临时表保存中间结果，性能特别差，需要重点优化</li>
+<li>Using index：表示相应的 select 操作中使用了覆盖索引（Coveing Index）,避免访问了表的数据行，效率不错！如果同时出现 using where，意味着无法直接通过索引查找来查询到符合条件的数据。</li>
+<li>Using index condition：MySQL5.6之后新增的ICP，using index condtion就是使用了ICP（索引下推），在存储引擎层进行数据过滤，而不是在服务层过滤，利用索引现有的数据减少回表的数据。</li>
+</ul>
+<p><strong>3、show profile 分析</strong></p>
+<p>了解SQL执行的线程的状态及消耗的时间。</p>
+<p>默认是关闭的，开启语句“set profiling &#x3D; 1;”</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">SHOW</span> PROFILES ;<span class="keyword">SHOW</span> PROFILE <span class="keyword">FOR</span> QUERY  #&#123;id&#125;;</span><br></pre></td></tr></table></figure>
+
+
+
+<p><strong>4、trace</strong></p>
+<p>trace分析优化器如何选择执行计划，通过trace文件能够进一步了解为什么优惠券选择A执行计划而不选择B执行计划。</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">set</span> optimizer_trace<span class="operator">=</span>&quot;enabled=on&quot;;<span class="keyword">set</span> optimizer_trace_max_mem_size<span class="operator">=</span><span class="number">1000000</span>;<span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> information_schema.optimizer_trace;</span><br></pre></td></tr></table></figure>
+
+
+
+<p><strong>5、确定问题并采用相应的措施</strong></p>
+<ul>
+<li>优化索引</li>
+<li>优化SQL语句：修改SQL、IN 查询分段、时间查询分段、基于上一次数据过滤</li>
+<li>改用其他实现方式：ES、数仓等</li>
+<li>数据碎片处理</li>
+</ul>
+<h2 id="3、场景分析"><a href="#3、场景分析" class="headerlink" title="3、场景分析"></a>3、场景分析</h2><p><strong>案例1、最左匹配</strong></p>
+<p>索引</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_shopid_orderno` (`shop_id`,`order_no`)</span><br></pre></td></tr></table></figure>
+
+
+
+<p>SQL语句</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _t <span class="keyword">where</span> orderno<span class="operator">=</span><span class="string">&#x27;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>查询匹配从左往右匹配，要使用order_no走索引，必须查询条件携带shop_id或者索引(shop_id,order_no)调换前后顺序</p>
+<p><strong>案例2、隐式转换</strong></p>
+<p>索引</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_mobile` (`mobile`)</span><br></pre></td></tr></table></figure>
+
+
+
+<p>SQL语句</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _user <span class="keyword">where</span> mobile<span class="operator">=</span><span class="number">12345678901</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>隐式转换相当于在索引上做运算，会让索引失效。mobile是字符类型，使用了数字，应该使用字符串匹配，否则MySQL会用到隐式替换，导致索引失效。</p>
+<p><strong>案例3、大分页</strong></p>
+<p>索引</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_a_b_c` (`a`, `b`, `c`)</span><br></pre></td></tr></table></figure>
+
+
+
+<p>SQL语句</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _t <span class="keyword">where</span> a <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> b <span class="operator">=</span> <span class="number">2</span> <span class="keyword">order</span> <span class="keyword">by</span> c <span class="keyword">desc</span> limit <span class="number">10000</span>, <span class="number">10</span>;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>对于大分页的场景，可以优先让产品优化需求，如果没有优化的，有如下两种优化方式，</p>
+<p>一种是把上一次的最后一条数据，也即上面的c传过来，然后做“c &lt; xxx”处理，但是这种一般需要改接口协议，并不一定可行。</p>
+<p>另一种是采用延迟关联的方式进行处理，减少SQL回表，但是要记得索引需要完全覆盖才有效果，SQL改动如下</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">select t1.* from _t t1, (select id from _t where a = 1 and b = 2 order by c desc limit 10000, 10) t2 where t1.id = t2.id;</span><br></pre></td></tr></table></figure>
+
+
+
+<p><strong>案例4、in + order by</strong></p>
+<p>索引</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_shopid_status_created` (`shop_id`, `order_status`, `created_at`)</span><br></pre></td></tr></table></figure>
+
+
+
+<p>SQL语句</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span> shop_id <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> order_status <span class="keyword">in</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>) <span class="keyword">order</span> <span class="keyword">by</span> created_at <span class="keyword">desc</span> limit <span class="number">10</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>in查询在MySQL底层是通过n*m的方式去搜索，类似union，但是效率比union高。</p>
+<p>in查询在进行cost代价计算时（代价 &#x3D; 元组数 * IO平均值），是通过将in包含的数值，一条条去查询获取元组数的，因此这个计算过程会比较的慢，所以MySQL设置了个临界值(eq_range_index_dive_limit)，5.6之后超过这个临界值后该列的cost就不参与计算了。因此会导致执行计划选择不准确。默认是200，即in条件超过了200个数据，会导致in的代价计算存在问题，可能会导致Mysql选择的索引不准确。</p>
+<p>处理方式，可以(order_status, created_at)互换前后顺序，并且调整SQL为延迟关联。</p>
+<p><strong>案例5、范围查询阻断，后续字段不能走索引</strong></p>
+<p>索引</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_shopid_created_status` (`shop_id`, `created_at`, `order_status`)</span><br></pre></td></tr></table></figure>
+
+
+
+<p>SQL语句</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span> shop_id <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> created_at <span class="operator">&gt;</span> <span class="string">&#x27;2021-01-01 00:00:00&#x27;</span> <span class="keyword">and</span> order_status <span class="operator">=</span> <span class="number">10</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>范围查询还有“IN、between”</p>
+<p><strong>案例6、不等于、不包含不能用到索引的快速搜索。（可以用到ICP）</strong></p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span> shop_id<span class="operator">=</span><span class="number">1</span> <span class="keyword">and</span> order_status <span class="keyword">not</span> <span class="keyword">in</span> (<span class="number">1</span>,<span class="number">2</span>)<span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span> shop_id<span class="operator">=</span><span class="number">1</span> <span class="keyword">and</span> order_status <span class="operator">!=</span> <span class="number">1</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>在索引上，避免使用NOT、!&#x3D;、&lt;&gt;、!&lt;、!&gt;、NOT EXISTS、NOT IN、NOT LIKE等</p>
+<p><strong>案例7、优化器选择不使用索引的情况</strong></p>
+<p>如果要求访问的数据量很小，则优化器还是会选择辅助索引，但是当访问的数据占整个表中数据的蛮大一部分时（一般是20%左右），优化器会选择通过聚集索引来查找数据。</p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span>  order_status <span class="operator">=</span> <span class="number">1</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>查询出所有未支付的订单，一般这种订单是很少的，即使建了索引，也没法使用索引。</p>
+<p><strong>案例8、复杂查询</strong></p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="built_in">sum</span>(amt) <span class="keyword">from</span> _t <span class="keyword">where</span> a <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> b <span class="keyword">in</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>) <span class="keyword">and</span> c <span class="operator">&gt;</span> <span class="string">&#x27;2020-01-01&#x27;</span>;<span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _t <span class="keyword">where</span> a <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> b <span class="keyword">in</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>) <span class="keyword">and</span> c <span class="operator">&gt;</span> <span class="string">&#x27;2020-01-01&#x27;</span> limit <span class="number">10</span>;</span><br></pre></td></tr></table></figure>
+
+
+
+<p>如果是统计某些数据，可能改用数仓进行解决；</p>
+<p>如果是业务上就有那么复杂的查询，可能就不建议继续走SQL了，而是采用其他的方式进行解决，比如使用ES等进行解决。</p>
+<p><strong>案例9、asc和desc混用</strong></p>
+<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _t <span class="keyword">where</span> a<span class="operator">=</span><span class="number">1</span> <span class="keyword">order</span> <span class="keyword">by</span> b <span class="keyword">desc</span>, c <span class="keyword">asc</span></span><br></pre></td></tr></table></figure>
+
+
+
+<p>desc 和asc混用时会导致索引失效</p>
+<p><strong>案例10、大数据</strong></p>
+<p>对于推送业务的数据存储，可能数据量会很大，如果在方案的选择上，最终选择存储在MySQL上，并且做7天等有效期的保存。</p>
+<p>那么需要注意，频繁的清理数据，会照成数据碎片，需要联系DBA进行数据碎片处理</p>
+<p>来源：cnblogs.com&#x2F;powercto&#x2F;p&#x2F;14410128.html</p>
+]]></content>
+      <categories>
+        <category>默认分类</category>
+      </categories>
+  </entry>
+  <entry>
     <title>Bean注入的四种方式</title>
     <url>/2022/12/01/Bean%E6%B3%A8%E5%85%A5%E7%9A%84%E5%9B%9B%E7%A7%8D%E6%96%B9%E5%BC%8F-bean%E6%B3%A8%E5%85%A5%E7%9A%84%E5%9B%9B%E7%A7%8D%E6%96%B9%E5%BC%8F/</url>
     <content><![CDATA[<h1 id="Bean注入的四种方式"><a href="#Bean注入的四种方式" class="headerlink" title="Bean注入的四种方式"></a>Bean注入的四种方式</h1><h2 id="xml-方式"><a href="#xml-方式" class="headerlink" title="xml 方式"></a>xml 方式</h2><p>依稀记得最早接触<code>Spring</code>的时候，用的还是<code>SSH</code>框架，不知道大家对这个还有印象吗？所有的<code>bean</code>的注入得依靠<code>xml</code>文件来完成。</p>
@@ -81,6 +229,107 @@
 
 <p>发现已经注入到<code>Spring</code>容器中了。</p>
 ]]></content>
+  </entry>
+  <entry>
+    <title>hashmap底层数据结构</title>
+    <url>/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/</url>
+    <content><![CDATA[<h2 id="一、HashMap简介"><a href="#一、HashMap简介" class="headerlink" title="一、HashMap简介"></a>一、HashMap简介</h2><p>1、它是一个通过Map接口实现的一个双列集合，主要是以键值对的方式进行存储，每一个键值对都有一个键和一个值。</p>
+<p>2、每一个键都是唯一的，值可以重复，后面添加的键会覆盖前面相同的键。</p>
+<p>3、HashMap存储结构采用的是哈希表的结构，元素的存储顺序不能保存一致，如果键是自定义的对象的话，需要重写hashcode方法与equals方法，才能保证键的唯一。</p>
+<h2 id="二、HashMap存储的原理"><a href="#二、HashMap存储的原理" class="headerlink" title="二、HashMap存储的原理"></a>二、HashMap存储的原理</h2><h3 id="1、版本区别"><a href="#1、版本区别" class="headerlink" title="1、版本区别"></a>1、版本区别</h3><p><strong>jdk8以前：</strong></p>
+<p>在jdk1.7中，首先是把元素放在一个个数组里面，后来存放的数据元素越来越多，于是就出现了链表，对于数组中的每一个元素，都可以有一条链表来存储元素。这就是有名的“拉链式”存储方法。<br><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-840e869c0ea34c8cad5655d3d316d8e4.png" alt="image.png"></p>
+<p><strong>jdk8以后：</strong></p>
+<p>由于存储的元素越来越多，链表也越来越长，在查找一个元素时候效率不仅没有提高（链表不适合查找，适合增删），反倒是下降了不少，于是就对这条链表进行了一个改进。如何改进呢？就是把这条链表变成一个适合查找的树形结构，没错就是红黑树。值得注意的是，因为需要为了退化成链表和遍历做准备，这个红黑树并不是纯红黑树，而是红黑树和双向链表的叠加结构。</p>
+<p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-ab9163a96dc44373910d0ef343bc8db6.png" alt="image.png"></p>
+<h3 id="2、存储的流程"><a href="#2、存储的流程" class="headerlink" title="2、存储的流程"></a>2、存储的流程</h3><p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-e3c1b70070d14acf9a3d26733f1a2de3.png" alt="image.png"></p>
+<h3 id><a href="#" class="headerlink" title></a></h3><h2 id="三、HashMap数据结构"><a href="#三、HashMap数据结构" class="headerlink" title="三、HashMap数据结构"></a>三、HashMap数据结构</h2><h3 id="1、hash表数据结构"><a href="#1、hash表数据结构" class="headerlink" title="1、hash表数据结构"></a>1、hash表数据结构</h3><h4 id="1）简介"><a href="#1）简介" class="headerlink" title="1）简介"></a>1）简介</h4><p>哈希表是一个通过数组和链表相结合而成的数据结构，既避免了数组的增删慢，也避免了链表查询查询慢的的缺陷。</p>
+<p><strong>数组</strong> ：</p>
+<p>数组的存储区是连续的，占用内存严重，故空间复杂度很大。但数组的二分查找时间度小；数组的特点：寻址容易，插入和删除困难。</p>
+<p><strong>链表</strong> ：</p>
+<p>链表的储存区离散，占用内存比较宽松，故空间复杂度很小，但时间复杂度大；</p>
+<p>链表的特点：寻址困难，插入和删除容易。</p>
+<h4 id="2）保证数据唯一的原理"><a href="#2）保证数据唯一的原理" class="headerlink" title="2）保证数据唯一的原理"></a>2）保证数据唯一的原理</h4><ol>
+<li><p>当HashMap集合存储元素的时候,就会调用该元素的hashCode0方法计算哈希值</p>
+</li>
+<li><p>判断该哈希值对应的位置上是否有相同哈希值的元素</p>
+</li>
+<li><p>如果该位置上没有相同哈希值的元素,就直接存储</p>
+</li>
+<li><p>如果该位置上有相同哈希值的元素,就说明产生了哈希冲突</p>
+</li>
+<li><p>产生了哈希冲实,就得调用该元素的equals方法,与该哈希值位置上的所有元素进行-比较</p>
+</li>
+<li><p>如果比较完后,没有一个元素与该元素相同,就直接存储</p>
+</li>
+<li><p>如果比较完后,只要有任意一个元素与该元素相同,就不存储</p>
+</li>
+</ol>
+<p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-5e50cc4ebbdf4cd59e62ef6f41491a37.png" alt="image.png"></p>
+<h3 id="3、红黑树的数据结构"><a href="#3、红黑树的数据结构" class="headerlink" title="3、红黑树的数据结构"></a>3、红黑树的数据结构</h3><h4 id="1）简介-1"><a href="#1）简介-1" class="headerlink" title="1）简介"></a>1）简介</h4><p>红黑树是一种自平衡的二叉查找树，是计算机科学中用到的一种数据结构，它是在1972年由Rudolf Bayer发明的，当时被称之为平衡二叉B树，后来，在1978年被Leoj.Guibas和Robert Sedgewick修改为如今的”红黑树”。它是一种特殊的二叉查找树，红黑树的每一个节点上都有存储位表示节点的颜色，可以是红或者黑；</p>
+<p>红黑树不是高度平衡的，它的平衡是通过”红黑树的特性”进行实现的；</p>
+<h4 id="2）红黑树特性"><a href="#2）红黑树特性" class="headerlink" title="2）红黑树特性"></a>2）红黑树特性</h4><ol>
+<li><p>每一个节点或是红色的，或者是黑色的。</p>
+</li>
+<li><p>根节点必须是黑色</p>
+</li>
+<li><p>每个叶节点(Nil)是黑色的；（如果一个节点没有子节点或者父节点，则该节点相应的指针属性值为Nil，这些Nil视为叶节点）</p>
+</li>
+<li><p>如果某一个节点是红色，那么它的子节点必须是黑色(不能出现两个红色节点相连的情况)</p>
+</li>
+<li><p>对每一个节点，从该节点到其所有后代叶节点的简单路径上，均包含相同数目的黑色节点；</p>
+</li>
+<li><p>在进行元素插入的时候，和之前一样； 每一次插入完毕以后，使用黑色规则进行校验，如果不满足红黑规则，就需要通过变色，左旋和右旋来调整树，使其满足红黑规则；</p>
+</li>
+</ol>
+<p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-4bf5d88b307548c7bb2a52a715858cad.png" alt="image.png"></p>
+<h4 id="3）与AVL树的区别"><a href="#3）与AVL树的区别" class="headerlink" title="3）与AVL树的区别"></a>3）与AVL树的区别</h4><p> 1、红黑树放弃了追求完全平衡，追求大致平衡，在与平衡二叉树的时间复杂度相差不大的情况下，保证每次插入最多只需要三次旋转就能达到平衡，实现起来也更为简单。</p>
+<p> 2、平衡二叉树追求绝对平衡，条件比较苛刻，实现起来比较麻烦，每次插入新节点之后需要旋转的次数不能预知。</p>
+<h2 id="四、算法"><a href="#四、算法" class="headerlink" title="四、算法"></a>四、算法</h2><h4 id="1、负载因子（load-factor）"><a href="#1、负载因子（load-factor）" class="headerlink" title="1、负载因子（load factor）"></a>1、负载因子（load factor）</h4><p>   如果一个hash表中桶的个数为 size , 存储的元素个数为used .则我们称 used &#x2F; size 为负载因子loadFactor . 一般的情况下，当loadFactor&lt;&#x3D;1时，hash表查找的期望复杂度为O(1). 因此。每次往hash表中加入元素时。我们必须保证是在loadFactor &lt;1的情况下，才可以加入。</p>
+<h4 id="2、初始容量与扩容"><a href="#2、初始容量与扩容" class="headerlink" title="2、初始容量与扩容"></a>2、初始容量与扩容</h4><p>HashMap的初始容量为16，Hashtable初始容量为11，两者的负载填充因子默认都是0.75。</p>
+<p>如果size大小到达阈值，则扩容一倍，依旧为2的整次幂</p>
+<p>最大容量：因为计算采用int值，int值最大为2的31次-1，达不到2的31次，所以为2的30次。</p>
+<h4 id="3、扩容的实现"><a href="#3、扩容的实现" class="headerlink" title="3、扩容的实现"></a>3、扩容的实现</h4><p>当我们加入一个新元素时。一旦loadFactor大于等于1了，我们不能单纯的往hash表里边加入元素。</p>
+<p>由于加入完之后，loadFactor将大于1，这样也就不能保证查找的期望时间复杂度为常数级了。这时。我们应该对桶数组进行一次容量扩张，让size增大 。</p>
+<p>这样就能保证加入元素后 used &#x2F; size 仍然小于等于1 ， 从而保证查找的期望时间复杂度为O(1).可是。怎样进行容量扩张呢？ C++中的vector的容量扩张是一种好方法。</p>
+<p>于是有了例如以下思路 ：　Hash表中每次发现loadFactor&#x3D;&#x3D;1时，就开辟一个原来桶数组的两倍空间（称为新桶数组），然后把原来的桶数组中元素所有转移过来到新的桶数组中。注意这里转移是须要元素一个个又一次哈希到新桶中的。原因后面会讲到。</p>
+<p>   这样的方法的缺点是，容量扩张是一次完毕的，期间要花非常长时间一次转移hash表中的全部元素。这样在hash表中loadFactor&#x3D;&#x3D;1时。往里边插入一个元素将会等候非常长的时间。</p>
+<h4 id="4、Redis中的实现"><a href="#4、Redis中的实现" class="headerlink" title="4、Redis中的实现"></a>4、Redis中的实现</h4><ol>
+<li><p>Redis 是一个高效的 key-value 缓存系统，也可以理解为基于键值对的数据库。</p>
+</li>
+<li><p>Redis也是采取<strong>链地址法</strong>解决哈希冲突。</p>
+</li>
+<li><p>我们知道，Java发生扩容的瞬间，是需要先将原哈希表中所有键值对都转移到新的哈希表中，这个过程是比较慢的，此时插入该元素的性能相当低。</p>
+</li>
+<li><p>而Redis对于这一部分，采取的是<strong>分摊转移</strong>的方式。即当插入一个新元素x触发了扩容时，先转移第一个不为空的桶到新的哈希表，然后将该元素插入。而下一次再次插入时，继续转移旧哈希表中第一个不为空的桶，再插入元素。直至旧哈希表为空为止。这样一来，理想情况下，插入的时间复杂度是O(1)。</p>
+</li>
+<li><p>在Redis的实现中，新插入的键值对会放在箱子中链表的头部，而不是在尾部继续插入。</p>
+</li>
+<li><p>这种方案是基于两点考虑：</p>
+</li>
+<li><p>一是由于找到链表尾部的时间复杂度为O(n)，且需要额外的内存地址来保存链表的尾部位置，而头插法的时间复杂度为O(1)。</p>
+</li>
+<li><p>二是处于Redis的实际应用场景来考虑。对于一个数据库系统来说，最新插入的数据往往更可能频繁地被获取，所以这样也能节省查找的耗时</p>
+</li>
+</ol>
+<h2 id="五、ConcurrentHashMap、HashTable、HashMap区别"><a href="#五、ConcurrentHashMap、HashTable、HashMap区别" class="headerlink" title="五、ConcurrentHashMap、HashTable、HashMap区别"></a>五、ConcurrentHashMap、HashTable、HashMap区别</h2><h3 id="1、HashMap"><a href="#1、HashMap" class="headerlink" title="1、HashMap"></a>1、HashMap</h3><p>因为多线程环境下，使用Hashmap进行put操作可能会引起死锁，导致CPU利用率接近100%，所以在并发情况下不能使用HashMap。【PS：HashMap 是允许key值为空的】</p>
+<h3 id="2、HashTable"><a href="#2、HashTable" class="headerlink" title="2、HashTable"></a>2、HashTable</h3><p>Hashtable容器使用synchronized来保证线程安全，但在线程竞争激烈的情况下Hashtable的效率非常低下。因为当一个线程访问Hashtable的同步方法时，其他线程访问Hashtable的同步方法时，可能会进入阻塞或轮询状态。如线程1使用put进行添加元素，线程2不但不能使用put方法添加元素，并且也不能使用get方法来获取元素，所以竞争越激烈效率越低。</p>
+<p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-ba4fef5ef17740c79a373e929b5db03f.png" alt="image.png"></p>
+<h3 id="3、ConcurrentHashMap"><a href="#3、ConcurrentHashMap" class="headerlink" title="3、ConcurrentHashMap"></a>3、ConcurrentHashMap</h3><p><strong>1）jdk7版本</strong></p>
+<p>ConcurrentHashMap和HashMap设计思路差不多，但是为支持并发操作，做了一定的改进，ConcurrentHashMap引入Segment 的概念，目的是将map拆分成多个Segment(默认16个)。操作ConcurrentHashMap细化到操作某一个Segment。在多线程环境下，不同线程操作不同的Segment，他们互不影响，这便可实现并发操作。</p>
+<p><strong>2）jdk8版本</strong></p>
+<p>jdk8版本的ConcurrentHashMap相对于jdk7版本，发送了很大改动，jdk8直接抛弃了Segment的设计，采用了  较为轻捷的Node + CAS + Synchronized设计，保证线程安全。</p>
+<p><strong>3）总结</strong></p>
+<p>1、get方法不加锁；</p>
+<p>2、put、remove方法要使用锁</p>
+<p>jdk7使用锁分离机制(Segment分段加锁)</p>
+<p>jdk8使用cas + synchronized 实现锁操作</p>
+<p>3、Iterator对象的使用，运行一边更新，一遍遍历(可以根据原理自己拓展)</p>
+<p>4、复合操作，无法保证线程安全，需要额外加锁保证</p>
+<p>5、并发环境下，ConcurrentHashMap 效率较Collections.synchronizedMap()更高</p>
+]]></content>
+      <categories>
+        <category>默认分类</category>
+      </categories>
   </entry>
   <entry>
     <title>fastdfs应用</title>
@@ -325,154 +574,6 @@
       </tags>
   </entry>
   <entry>
-    <title>SQL优化万能公式：5 大步骤 + 10 个案例</title>
-    <url>/2022/08/16/SQL%E4%BC%98%E5%8C%96%E4%B8%87%E8%83%BD%E5%85%AC%E5%BC%8F%EF%BC%9A5%20%E5%A4%A7%E6%AD%A5%E9%AA%A4%20+%2010%20%E4%B8%AA%E6%A1%88%E4%BE%8B-sql-you-hua-wan-neng-gong-shi-5da-bu-zhou-10ge-an-li/</url>
-    <content><![CDATA[<h2 id="1、前言"><a href="#1、前言" class="headerlink" title="1、前言"></a>1、前言</h2><p>在应用开发的早期，数据量少，开发人员开发功能时更重视功能上的实现，随着生产数据的增长，很多SQL语句开始暴露出性能问题，对生产的影响也越来越大，有时可能这些有问题的SQL就是整个系统性能的瓶颈。</p>
-<h2 id="2、SQL优化一般步骤"><a href="#2、SQL优化一般步骤" class="headerlink" title="2、SQL优化一般步骤"></a>2、SQL优化一般步骤</h2><p><strong>1、通过慢查日志等定位那些执行效率较低的SQL语句</strong></p>
-<p><strong>2、explain 分析SQL的执行计划</strong></p>
-<p>需要重点关注type、rows、filtered、extra。</p>
-<p>type由上至下，效率越来越高</p>
-<ul>
-<li>ALL 全表扫描</li>
-<li>index 索引全扫描</li>
-<li>range 索引范围扫描，常用语&lt;,&lt;&#x3D;,&gt;&#x3D;,between,in等操作</li>
-<li>ref 使用非唯一索引扫描或唯一索引前缀扫描，返回单条记录，常出现在关联查询中</li>
-<li>eq_ref 类似ref，区别在于使用的是唯一索引，使用主键的关联查询</li>
-<li>const&#x2F;system 单条记录，系统会把匹配行中的其他列作为常数处理，如主键或唯一索引查询</li>
-<li>null MySQL不访问任何表或索引，直接返回结果</li>
-<li>虽然上至下，效率越来越高，但是根据cost模型，假设有两个索引idx1(a, b, c),idx2(a, c)，SQL为”select * from t where a &#x3D; 1 and b in (1, 2) order by c”;如果走idx1，那么是type为range，如果走idx2，那么type是ref；当需要扫描的行数，使用idx2大约是idx1的5倍以上时，会用idx1，否则会用idx2</li>
-</ul>
-<p>Extra</p>
-<ul>
-<li>Using filesort：MySQL需要额外的一次传递，以找出如何按排序顺序检索行。通过根据联接类型浏览所有行并为所有匹配WHERE子句的行保存排序关键字和行的指针来完成排序。然后关键字被排序，并按排序顺序检索行。</li>
-<li>Using temporary：使用了临时表保存中间结果，性能特别差，需要重点优化</li>
-<li>Using index：表示相应的 select 操作中使用了覆盖索引（Coveing Index）,避免访问了表的数据行，效率不错！如果同时出现 using where，意味着无法直接通过索引查找来查询到符合条件的数据。</li>
-<li>Using index condition：MySQL5.6之后新增的ICP，using index condtion就是使用了ICP（索引下推），在存储引擎层进行数据过滤，而不是在服务层过滤，利用索引现有的数据减少回表的数据。</li>
-</ul>
-<p><strong>3、show profile 分析</strong></p>
-<p>了解SQL执行的线程的状态及消耗的时间。</p>
-<p>默认是关闭的，开启语句“set profiling &#x3D; 1;”</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">SHOW</span> PROFILES ;<span class="keyword">SHOW</span> PROFILE <span class="keyword">FOR</span> QUERY  #&#123;id&#125;;</span><br></pre></td></tr></table></figure>
-
-
-
-<p><strong>4、trace</strong></p>
-<p>trace分析优化器如何选择执行计划，通过trace文件能够进一步了解为什么优惠券选择A执行计划而不选择B执行计划。</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">set</span> optimizer_trace<span class="operator">=</span>&quot;enabled=on&quot;;<span class="keyword">set</span> optimizer_trace_max_mem_size<span class="operator">=</span><span class="number">1000000</span>;<span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> information_schema.optimizer_trace;</span><br></pre></td></tr></table></figure>
-
-
-
-<p><strong>5、确定问题并采用相应的措施</strong></p>
-<ul>
-<li>优化索引</li>
-<li>优化SQL语句：修改SQL、IN 查询分段、时间查询分段、基于上一次数据过滤</li>
-<li>改用其他实现方式：ES、数仓等</li>
-<li>数据碎片处理</li>
-</ul>
-<h2 id="3、场景分析"><a href="#3、场景分析" class="headerlink" title="3、场景分析"></a>3、场景分析</h2><p><strong>案例1、最左匹配</strong></p>
-<p>索引</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_shopid_orderno` (`shop_id`,`order_no`)</span><br></pre></td></tr></table></figure>
-
-
-
-<p>SQL语句</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _t <span class="keyword">where</span> orderno<span class="operator">=</span><span class="string">&#x27;&#x27;</span></span><br></pre></td></tr></table></figure>
-
-
-
-<p>查询匹配从左往右匹配，要使用order_no走索引，必须查询条件携带shop_id或者索引(shop_id,order_no)调换前后顺序</p>
-<p><strong>案例2、隐式转换</strong></p>
-<p>索引</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_mobile` (`mobile`)</span><br></pre></td></tr></table></figure>
-
-
-
-<p>SQL语句</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _user <span class="keyword">where</span> mobile<span class="operator">=</span><span class="number">12345678901</span></span><br></pre></td></tr></table></figure>
-
-
-
-<p>隐式转换相当于在索引上做运算，会让索引失效。mobile是字符类型，使用了数字，应该使用字符串匹配，否则MySQL会用到隐式替换，导致索引失效。</p>
-<p><strong>案例3、大分页</strong></p>
-<p>索引</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_a_b_c` (`a`, `b`, `c`)</span><br></pre></td></tr></table></figure>
-
-
-
-<p>SQL语句</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _t <span class="keyword">where</span> a <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> b <span class="operator">=</span> <span class="number">2</span> <span class="keyword">order</span> <span class="keyword">by</span> c <span class="keyword">desc</span> limit <span class="number">10000</span>, <span class="number">10</span>;</span><br></pre></td></tr></table></figure>
-
-
-
-<p>对于大分页的场景，可以优先让产品优化需求，如果没有优化的，有如下两种优化方式，</p>
-<p>一种是把上一次的最后一条数据，也即上面的c传过来，然后做“c &lt; xxx”处理，但是这种一般需要改接口协议，并不一定可行。</p>
-<p>另一种是采用延迟关联的方式进行处理，减少SQL回表，但是要记得索引需要完全覆盖才有效果，SQL改动如下</p>
-<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">select t1.* from _t t1, (select id from _t where a = 1 and b = 2 order by c desc limit 10000, 10) t2 where t1.id = t2.id;</span><br></pre></td></tr></table></figure>
-
-
-
-<p><strong>案例4、in + order by</strong></p>
-<p>索引</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_shopid_status_created` (`shop_id`, `order_status`, `created_at`)</span><br></pre></td></tr></table></figure>
-
-
-
-<p>SQL语句</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span> shop_id <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> order_status <span class="keyword">in</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>) <span class="keyword">order</span> <span class="keyword">by</span> created_at <span class="keyword">desc</span> limit <span class="number">10</span></span><br></pre></td></tr></table></figure>
-
-
-
-<p>in查询在MySQL底层是通过n*m的方式去搜索，类似union，但是效率比union高。</p>
-<p>in查询在进行cost代价计算时（代价 &#x3D; 元组数 * IO平均值），是通过将in包含的数值，一条条去查询获取元组数的，因此这个计算过程会比较的慢，所以MySQL设置了个临界值(eq_range_index_dive_limit)，5.6之后超过这个临界值后该列的cost就不参与计算了。因此会导致执行计划选择不准确。默认是200，即in条件超过了200个数据，会导致in的代价计算存在问题，可能会导致Mysql选择的索引不准确。</p>
-<p>处理方式，可以(order_status, created_at)互换前后顺序，并且调整SQL为延迟关联。</p>
-<p><strong>案例5、范围查询阻断，后续字段不能走索引</strong></p>
-<p>索引</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line">KEY `idx_shopid_created_status` (`shop_id`, `created_at`, `order_status`)</span><br></pre></td></tr></table></figure>
-
-
-
-<p>SQL语句</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span> shop_id <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> created_at <span class="operator">&gt;</span> <span class="string">&#x27;2021-01-01 00:00:00&#x27;</span> <span class="keyword">and</span> order_status <span class="operator">=</span> <span class="number">10</span></span><br></pre></td></tr></table></figure>
-
-
-
-<p>范围查询还有“IN、between”</p>
-<p><strong>案例6、不等于、不包含不能用到索引的快速搜索。（可以用到ICP）</strong></p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span> shop_id<span class="operator">=</span><span class="number">1</span> <span class="keyword">and</span> order_status <span class="keyword">not</span> <span class="keyword">in</span> (<span class="number">1</span>,<span class="number">2</span>)<span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span> shop_id<span class="operator">=</span><span class="number">1</span> <span class="keyword">and</span> order_status <span class="operator">!=</span> <span class="number">1</span></span><br></pre></td></tr></table></figure>
-
-
-
-<p>在索引上，避免使用NOT、!&#x3D;、&lt;&gt;、!&lt;、!&gt;、NOT EXISTS、NOT IN、NOT LIKE等</p>
-<p><strong>案例7、优化器选择不使用索引的情况</strong></p>
-<p>如果要求访问的数据量很小，则优化器还是会选择辅助索引，但是当访问的数据占整个表中数据的蛮大一部分时（一般是20%左右），优化器会选择通过聚集索引来查找数据。</p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _order <span class="keyword">where</span>  order_status <span class="operator">=</span> <span class="number">1</span></span><br></pre></td></tr></table></figure>
-
-
-
-<p>查询出所有未支付的订单，一般这种订单是很少的，即使建了索引，也没法使用索引。</p>
-<p><strong>案例8、复杂查询</strong></p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="built_in">sum</span>(amt) <span class="keyword">from</span> _t <span class="keyword">where</span> a <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> b <span class="keyword">in</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>) <span class="keyword">and</span> c <span class="operator">&gt;</span> <span class="string">&#x27;2020-01-01&#x27;</span>;<span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _t <span class="keyword">where</span> a <span class="operator">=</span> <span class="number">1</span> <span class="keyword">and</span> b <span class="keyword">in</span> (<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>) <span class="keyword">and</span> c <span class="operator">&gt;</span> <span class="string">&#x27;2020-01-01&#x27;</span> limit <span class="number">10</span>;</span><br></pre></td></tr></table></figure>
-
-
-
-<p>如果是统计某些数据，可能改用数仓进行解决；</p>
-<p>如果是业务上就有那么复杂的查询，可能就不建议继续走SQL了，而是采用其他的方式进行解决，比如使用ES等进行解决。</p>
-<p><strong>案例9、asc和desc混用</strong></p>
-<figure class="highlight sql"><table><tr><td class="code"><pre><span class="line"><span class="keyword">select</span> <span class="operator">*</span> <span class="keyword">from</span> _t <span class="keyword">where</span> a<span class="operator">=</span><span class="number">1</span> <span class="keyword">order</span> <span class="keyword">by</span> b <span class="keyword">desc</span>, c <span class="keyword">asc</span></span><br></pre></td></tr></table></figure>
-
-
-
-<p>desc 和asc混用时会导致索引失效</p>
-<p><strong>案例10、大数据</strong></p>
-<p>对于推送业务的数据存储，可能数据量会很大，如果在方案的选择上，最终选择存储在MySQL上，并且做7天等有效期的保存。</p>
-<p>那么需要注意，频繁的清理数据，会照成数据碎片，需要联系DBA进行数据碎片处理</p>
-<p>来源：cnblogs.com&#x2F;powercto&#x2F;p&#x2F;14410128.html</p>
-]]></content>
-      <categories>
-        <category>默认分类</category>
-      </categories>
-  </entry>
-  <entry>
     <title>shiro使用</title>
     <url>/2021/07/12/shiro%E4%BD%BF%E7%94%A8-shiro%E4%BD%BF%E7%94%A8/</url>
     <content><![CDATA[<h1 id="shiro"><a href="#shiro" class="headerlink" title="shiro"></a>shiro</h1><h2 id="一、shiro是什么"><a href="#一、shiro是什么" class="headerlink" title="一、shiro是什么?"></a>一、shiro是什么?</h2><p>​	 Shiro是Apache下的一个开源项目。shiro属于轻量级框架，相对于SpringSecurity简单的多，也没有SpringSecurity那么复杂 。</p>
@@ -518,154 +619,6 @@
       <tags>
         <tag>权限</tag>
       </tags>
-  </entry>
-  <entry>
-    <title>springboot 优雅的实现统一返回处理</title>
-    <url>/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/</url>
-    <content><![CDATA[<h1 id="springboot-优雅的实现统一返回处理"><a href="#springboot-优雅的实现统一返回处理" class="headerlink" title="springboot 优雅的实现统一返回处理"></a>springboot 优雅的实现统一返回处理</h1><p>前言：随着前后端分离这种模式的趋势下，后端开发人员更注重后端方面的代码，但是对后端人员在代码编写的过程当中需要越来越规范，这样不仅可以提高开发效率，更可以让代码后期维护起来更加的方便。</p>
-<p>这篇文章主要是当接口返回的统一处理，能够让前端人员有个统一的接收后台的接口返回。</p>
-<h2 id="1、自定义常用的状态码"><a href="#1、自定义常用的状态码" class="headerlink" title="1、自定义常用的状态码"></a>1、自定义常用的状态码</h2><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 自定义状态码枚举</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">enum</span> <span class="title class_">ResultCode</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 操作成功</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    RC200(<span class="number">200</span>, <span class="string">&quot;操作成功&quot;</span>),</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 操作失败</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    RC900(<span class="number">900</span>, <span class="string">&quot;操作失败&quot;</span>),</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 服务异常</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    RC500(<span class="number">500</span>, <span class="string">&quot;系统异常，请稍后重试&quot;</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 自定义状态码</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> <span class="type">int</span> code;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 自定义描述</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> String message;</span><br><span class="line"></span><br><span class="line">    ResultCode(<span class="type">int</span> code, String message) &#123;</span><br><span class="line">        <span class="built_in">this</span>.code = code;</span><br><span class="line">        <span class="built_in">this</span>.message = message;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="type">int</span> <span class="title function_">getCode</span><span class="params">()</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> code;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> String <span class="title function_">getMessage</span><span class="params">()</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> message;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<p>当然可以定义定义一些其他状态码，可以让前端根据不同的状态码进行不同的处理，这里只定义部分常用状态码。</p>
-<h2 id="2、统一结果返回包装类"><a href="#2、统一结果返回包装类" class="headerlink" title="2、统一结果返回包装类"></a>2、统一结果返回包装类</h2><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">package</span> com.example.spring.response.constant;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> lombok.Data;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 自定义结果包装类</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Data</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">ResultData</span>&lt;T&gt; &#123;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 状态码</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">private</span> <span class="type">int</span> status;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 返回消息</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">private</span> String message;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 返回的结果</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">private</span> T data;</span><br><span class="line">    </span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 有结果返回值操作成功</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> data 数据</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> &lt;T&gt;  泛型</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> 包装结果</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> &lt;T&gt; ResultData&lt;T&gt; <span class="title function_">success</span><span class="params">(T data)</span> &#123;</span><br><span class="line">        ResultData&lt;T&gt; resultData = <span class="keyword">new</span> <span class="title class_">ResultData</span>&lt;&gt;();</span><br><span class="line">        resultData.setStatus(ResultCode.RC200.getCode());</span><br><span class="line">        resultData.setMessage(ResultCode.RC200.getMessage());</span><br><span class="line">        resultData.setData(data);</span><br><span class="line">        <span class="keyword">return</span> resultData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 无结果返回值操作成功</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> &lt;T&gt;  泛型</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> 包装结果</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> &lt;T&gt; ResultData&lt;T&gt; <span class="title function_">success</span><span class="params">()</span> &#123;</span><br><span class="line">        ResultData&lt;T&gt; resultData = <span class="keyword">new</span> <span class="title class_">ResultData</span>&lt;&gt;();</span><br><span class="line">        resultData.setStatus(ResultCode.RC200.getCode());</span><br><span class="line">        resultData.setMessage(ResultCode.RC200.getMessage());</span><br><span class="line">        <span class="keyword">return</span> resultData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 有状态码的失败</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> code    状态码</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> message 失败消息</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> &lt;T&gt;     泛型</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> 包装失败</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> &lt;T&gt; ResultData&lt;T&gt; <span class="title function_">fail</span><span class="params">(<span class="type">int</span> code, String message)</span> &#123;</span><br><span class="line">        ResultData&lt;T&gt; resultData = <span class="keyword">new</span> <span class="title class_">ResultData</span>&lt;&gt;();</span><br><span class="line">        resultData.setStatus(code);</span><br><span class="line">        resultData.setMessage(message);</span><br><span class="line">        <span class="keyword">return</span> resultData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 无状态码的失败</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> message 失败消息</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> &lt;T&gt;     泛型</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> 包装失败</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> &lt;T&gt; ResultData&lt;T&gt; <span class="title function_">fail</span><span class="params">( String message)</span> &#123;</span><br><span class="line">        ResultData&lt;T&gt; resultData = <span class="keyword">new</span> <span class="title class_">ResultData</span>&lt;&gt;();</span><br><span class="line">        resultData.setStatus(ResultCode.RC999.getCode());</span><br><span class="line">        resultData.setMessage(message);</span><br><span class="line">        <span class="keyword">return</span> resultData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>这里只封装的部分方法，可以根据自己的实际需求封装不同方法。</p>
-<p><strong>写一个简单的请求demo</strong></p>
-<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="meta">@GetMapping(&quot;/getHi&quot;)</span></span><br><span class="line">   <span class="keyword">public</span> ResultData&lt;String&gt; <span class="title function_">getHi</span><span class="params">()</span>&#123;</span><br><span class="line">       <span class="keyword">return</span> ResultData.success(<span class="string">&quot;hi&quot;</span>);</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>返回结果</strong></p>
-<p><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/1.png"></p>
-<p><strong>模拟一个服务器的异常</strong></p>
-<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="meta">@GetMapping(&quot;/getHi&quot;)</span></span><br><span class="line">    <span class="keyword">public</span> ResultData&lt;String&gt; <span class="title function_">getHi</span><span class="params">()</span>&#123;</span><br><span class="line">        <span class="type">int</span> <span class="variable">a</span> <span class="operator">=</span> <span class="number">1</span>/<span class="number">0</span>;</span><br><span class="line">        <span class="keyword">return</span> ResultData.success(<span class="string">&quot;hi&quot;</span>);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>结果</strong></p>
-<p><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/2.png" alt="2"></p>
-<p>这种返回结果肯定不是前端开发人员想处理的，所以我们还要对服务端如果出现一个异常，也需要处理统一的返回格式。</p>
-<h2 id="3、自定义异常类，以及全局异常处理"><a href="#3、自定义异常类，以及全局异常处理" class="headerlink" title="3、自定义异常类，以及全局异常处理"></a>3、自定义异常类，以及全局异常处理</h2><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">package</span> com.example.spring.response.exception;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.constant.ResultCode;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 自定义义务异常</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">BizException</span> <span class="keyword">extends</span> <span class="title class_">RuntimeException</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> ResultCode resultCode;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="title function_">BizException</span><span class="params">(String message)</span> &#123;</span><br><span class="line">        <span class="built_in">super</span>(message);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="title function_">BizException</span><span class="params">(ResultCode resultCode)</span> &#123;</span><br><span class="line">        <span class="built_in">super</span>(resultCode.getMessage());</span><br><span class="line">        <span class="built_in">this</span>.resultCode = resultCode;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> String <span class="title function_">getMessage</span><span class="params">()</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="built_in">super</span>.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
-
-<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">package</span> com.example.spring.response.handler;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.constant.ResultCode;</span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.constant.ResultData;</span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.exception.BizException;</span><br><span class="line"><span class="keyword">import</span> lombok.extern.slf4j.Slf4j;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.HttpStatus;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.bind.annotation.ExceptionHandler;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.bind.annotation.ResponseStatus;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.bind.annotation.RestControllerAdvice;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 全局统一异常处理</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Slf4j</span></span><br><span class="line"><span class="meta">@RestControllerAdvice</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">RestExceptionHandler</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 自定义异常处理。</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> e the e</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> ResultData</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@ExceptionHandler(BizException.class)</span></span><br><span class="line">    <span class="meta">@ResponseStatus(HttpStatus.EXPECTATION_FAILED)</span></span><br><span class="line">    <span class="keyword">public</span> ResultData&lt;String&gt; <span class="title function_">exception</span><span class="params">(BizException e)</span> &#123;</span><br><span class="line">        log.error(<span class="string">&quot;全局异常信息 e=&#123;&#125;&quot;</span>, e.getMessage(), e);</span><br><span class="line">        <span class="keyword">return</span> ResultData.fail(e.getMessage());</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 默认全局异常处理。</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> e the e</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> ResultData</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@ExceptionHandler(Exception.class)</span></span><br><span class="line">    <span class="meta">@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)</span></span><br><span class="line">    <span class="keyword">public</span> ResultData&lt;String&gt; <span class="title function_">exception</span><span class="params">(Exception e)</span> &#123;</span><br><span class="line">        log.error(<span class="string">&quot;全局异常信息 e=&#123;&#125;&quot;</span>, e.getMessage(), e);</span><br><span class="line">        <span class="keyword">return</span> ResultData.fail(ResultCode.RC500.getCode(),e.getMessage());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p><strong>运行结果</strong></p>
-<p><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/3.png" alt="3"></p>
-<p>能够正确的返回。</p>
-<p>当时回头一想，统一处理但是每次返回结果的时候自己都得重复手动包装一下自定义的类，这样可以用代码来处理，所以下面实现自动包装返回的结果。</p>
-<h2 id="4、自定义自动包装统一返回类"><a href="#4、自定义自动包装统一返回类" class="headerlink" title="4、自定义自动包装统一返回类"></a>4、自定义自动包装统一返回类</h2><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">package</span> com.example.spring.response.handler;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.constant.ResultData;</span><br><span class="line"><span class="keyword">import</span> com.fasterxml.jackson.databind.ObjectMapper;</span><br><span class="line"><span class="keyword">import</span> lombok.SneakyThrows;</span><br><span class="line"><span class="keyword">import</span> org.springframework.beans.factory.annotation.Autowired;</span><br><span class="line"><span class="keyword">import</span> org.springframework.core.MethodParameter;</span><br><span class="line"><span class="keyword">import</span> org.springframework.core.io.Resource;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.MediaType;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.converter.HttpMessageConverter;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.server.ServerHttpRequest;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.server.ServerHttpResponse;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.bind.annotation.RestControllerAdvice;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 统一包装返回结果</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@RestControllerAdvice</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">ResponseAdvice</span> <span class="keyword">implements</span> <span class="title class_">ResponseBodyAdvice</span>&lt;Object&gt; &#123;</span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> ObjectMapper objectMapper;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">supports</span><span class="params">(MethodParameter methodParameter, Class&lt;? extends HttpMessageConverter&lt;?&gt;&gt; aClass)</span> &#123;</span><br><span class="line">        <span class="comment">//返回true则对返回值需要处理</span></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 接口返回前包装结果</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@SneakyThrows</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> Object <span class="title function_">beforeBodyWrite</span><span class="params">(Object o, MethodParameter methodParameter, MediaType mediaType, Class&lt;? extends HttpMessageConverter&lt;?&gt;&gt; aClass, ServerHttpRequest serverHttpRequest, ServerHttpResponse serverHttpResponse)</span> &#123;</span><br><span class="line">        <span class="comment">//如果是String类型，转为json</span></span><br><span class="line">        <span class="keyword">if</span> (o <span class="keyword">instanceof</span> String) &#123;</span><br><span class="line">            <span class="keyword">return</span> objectMapper.writeValueAsString(ResultData.success(o));</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//如果异常、文件形式，直接返回</span></span><br><span class="line">        <span class="keyword">if</span> (o <span class="keyword">instanceof</span> ResultData || o <span class="keyword">instanceof</span> Resource ) &#123;</span><br><span class="line">            <span class="keyword">return</span> o;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> ResultData.success(o);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
-
-<p>写个demo测试一下</p>
-<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="meta">@GetMapping(&quot;getWorld&quot;)</span></span><br><span class="line">   <span class="keyword">public</span> Order <span class="title function_">getWorld</span><span class="params">()</span>&#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">Order</span>(<span class="number">1L</span>,<span class="string">&quot;购物车&quot;</span>);</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="meta">@GetMapping(&quot;/getError&quot;)</span></span><br><span class="line">   <span class="keyword">public</span> Order <span class="title function_">getError</span><span class="params">()</span>&#123;</span><br><span class="line">       <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">BizException</span>(<span class="string">&quot;失败了&quot;</span>);</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
-
-<p>返回结果：</p>
-<p><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/5.png" alt="5"><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/6.png" alt="6"></p>
-<p>这样就可以优雅的实现统一返回值的处理。</p>
-<h3 id="注意"><a href="#注意" class="headerlink" title="注意:"></a>注意:</h3><p>特别注意这个类的判断！！！</p>
-]]></content>
-      <categories>
-        <category>默认分类</category>
-      </categories>
-      <tags>
-        <tag>cloud</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>hashmap底层数据结构</title>
-    <url>/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/</url>
-    <content><![CDATA[<h2 id="一、HashMap简介"><a href="#一、HashMap简介" class="headerlink" title="一、HashMap简介"></a>一、HashMap简介</h2><p>1、它是一个通过Map接口实现的一个双列集合，主要是以键值对的方式进行存储，每一个键值对都有一个键和一个值。</p>
-<p>2、每一个键都是唯一的，值可以重复，后面添加的键会覆盖前面相同的键。</p>
-<p>3、HashMap存储结构采用的是哈希表的结构，元素的存储顺序不能保存一致，如果键是自定义的对象的话，需要重写hashcode方法与equals方法，才能保证键的唯一。</p>
-<h2 id="二、HashMap存储的原理"><a href="#二、HashMap存储的原理" class="headerlink" title="二、HashMap存储的原理"></a>二、HashMap存储的原理</h2><h3 id="1、版本区别"><a href="#1、版本区别" class="headerlink" title="1、版本区别"></a>1、版本区别</h3><p><strong>jdk8以前：</strong></p>
-<p>在jdk1.7中，首先是把元素放在一个个数组里面，后来存放的数据元素越来越多，于是就出现了链表，对于数组中的每一个元素，都可以有一条链表来存储元素。这就是有名的“拉链式”存储方法。<br><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-840e869c0ea34c8cad5655d3d316d8e4.png" alt="image.png"></p>
-<p><strong>jdk8以后：</strong></p>
-<p>由于存储的元素越来越多，链表也越来越长，在查找一个元素时候效率不仅没有提高（链表不适合查找，适合增删），反倒是下降了不少，于是就对这条链表进行了一个改进。如何改进呢？就是把这条链表变成一个适合查找的树形结构，没错就是红黑树。值得注意的是，因为需要为了退化成链表和遍历做准备，这个红黑树并不是纯红黑树，而是红黑树和双向链表的叠加结构。</p>
-<p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-ab9163a96dc44373910d0ef343bc8db6.png" alt="image.png"></p>
-<h3 id="2、存储的流程"><a href="#2、存储的流程" class="headerlink" title="2、存储的流程"></a>2、存储的流程</h3><p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-e3c1b70070d14acf9a3d26733f1a2de3.png" alt="image.png"></p>
-<h3 id><a href="#" class="headerlink" title></a></h3><h2 id="三、HashMap数据结构"><a href="#三、HashMap数据结构" class="headerlink" title="三、HashMap数据结构"></a>三、HashMap数据结构</h2><h3 id="1、hash表数据结构"><a href="#1、hash表数据结构" class="headerlink" title="1、hash表数据结构"></a>1、hash表数据结构</h3><h4 id="1）简介"><a href="#1）简介" class="headerlink" title="1）简介"></a>1）简介</h4><p>哈希表是一个通过数组和链表相结合而成的数据结构，既避免了数组的增删慢，也避免了链表查询查询慢的的缺陷。</p>
-<p><strong>数组</strong> ：</p>
-<p>数组的存储区是连续的，占用内存严重，故空间复杂度很大。但数组的二分查找时间度小；数组的特点：寻址容易，插入和删除困难。</p>
-<p><strong>链表</strong> ：</p>
-<p>链表的储存区离散，占用内存比较宽松，故空间复杂度很小，但时间复杂度大；</p>
-<p>链表的特点：寻址困难，插入和删除容易。</p>
-<h4 id="2）保证数据唯一的原理"><a href="#2）保证数据唯一的原理" class="headerlink" title="2）保证数据唯一的原理"></a>2）保证数据唯一的原理</h4><ol>
-<li><p>当HashMap集合存储元素的时候,就会调用该元素的hashCode0方法计算哈希值</p>
-</li>
-<li><p>判断该哈希值对应的位置上是否有相同哈希值的元素</p>
-</li>
-<li><p>如果该位置上没有相同哈希值的元素,就直接存储</p>
-</li>
-<li><p>如果该位置上有相同哈希值的元素,就说明产生了哈希冲突</p>
-</li>
-<li><p>产生了哈希冲实,就得调用该元素的equals方法,与该哈希值位置上的所有元素进行-比较</p>
-</li>
-<li><p>如果比较完后,没有一个元素与该元素相同,就直接存储</p>
-</li>
-<li><p>如果比较完后,只要有任意一个元素与该元素相同,就不存储</p>
-</li>
-</ol>
-<p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-5e50cc4ebbdf4cd59e62ef6f41491a37.png" alt="image.png"></p>
-<h3 id="3、红黑树的数据结构"><a href="#3、红黑树的数据结构" class="headerlink" title="3、红黑树的数据结构"></a>3、红黑树的数据结构</h3><h4 id="1）简介-1"><a href="#1）简介-1" class="headerlink" title="1）简介"></a>1）简介</h4><p>红黑树是一种自平衡的二叉查找树，是计算机科学中用到的一种数据结构，它是在1972年由Rudolf Bayer发明的，当时被称之为平衡二叉B树，后来，在1978年被Leoj.Guibas和Robert Sedgewick修改为如今的”红黑树”。它是一种特殊的二叉查找树，红黑树的每一个节点上都有存储位表示节点的颜色，可以是红或者黑；</p>
-<p>红黑树不是高度平衡的，它的平衡是通过”红黑树的特性”进行实现的；</p>
-<h4 id="2）红黑树特性"><a href="#2）红黑树特性" class="headerlink" title="2）红黑树特性"></a>2）红黑树特性</h4><ol>
-<li><p>每一个节点或是红色的，或者是黑色的。</p>
-</li>
-<li><p>根节点必须是黑色</p>
-</li>
-<li><p>每个叶节点(Nil)是黑色的；（如果一个节点没有子节点或者父节点，则该节点相应的指针属性值为Nil，这些Nil视为叶节点）</p>
-</li>
-<li><p>如果某一个节点是红色，那么它的子节点必须是黑色(不能出现两个红色节点相连的情况)</p>
-</li>
-<li><p>对每一个节点，从该节点到其所有后代叶节点的简单路径上，均包含相同数目的黑色节点；</p>
-</li>
-<li><p>在进行元素插入的时候，和之前一样； 每一次插入完毕以后，使用黑色规则进行校验，如果不满足红黑规则，就需要通过变色，左旋和右旋来调整树，使其满足红黑规则；</p>
-</li>
-</ol>
-<p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-4bf5d88b307548c7bb2a52a715858cad.png" alt="image.png"></p>
-<h4 id="3）与AVL树的区别"><a href="#3）与AVL树的区别" class="headerlink" title="3）与AVL树的区别"></a>3）与AVL树的区别</h4><p> 1、红黑树放弃了追求完全平衡，追求大致平衡，在与平衡二叉树的时间复杂度相差不大的情况下，保证每次插入最多只需要三次旋转就能达到平衡，实现起来也更为简单。</p>
-<p> 2、平衡二叉树追求绝对平衡，条件比较苛刻，实现起来比较麻烦，每次插入新节点之后需要旋转的次数不能预知。</p>
-<h2 id="四、算法"><a href="#四、算法" class="headerlink" title="四、算法"></a>四、算法</h2><h4 id="1、负载因子（load-factor）"><a href="#1、负载因子（load-factor）" class="headerlink" title="1、负载因子（load factor）"></a>1、负载因子（load factor）</h4><p>   如果一个hash表中桶的个数为 size , 存储的元素个数为used .则我们称 used &#x2F; size 为负载因子loadFactor . 一般的情况下，当loadFactor&lt;&#x3D;1时，hash表查找的期望复杂度为O(1). 因此。每次往hash表中加入元素时。我们必须保证是在loadFactor &lt;1的情况下，才可以加入。</p>
-<h4 id="2、初始容量与扩容"><a href="#2、初始容量与扩容" class="headerlink" title="2、初始容量与扩容"></a>2、初始容量与扩容</h4><p>HashMap的初始容量为16，Hashtable初始容量为11，两者的负载填充因子默认都是0.75。</p>
-<p>如果size大小到达阈值，则扩容一倍，依旧为2的整次幂</p>
-<p>最大容量：因为计算采用int值，int值最大为2的31次-1，达不到2的31次，所以为2的30次。</p>
-<h4 id="3、扩容的实现"><a href="#3、扩容的实现" class="headerlink" title="3、扩容的实现"></a>3、扩容的实现</h4><p>当我们加入一个新元素时。一旦loadFactor大于等于1了，我们不能单纯的往hash表里边加入元素。</p>
-<p>由于加入完之后，loadFactor将大于1，这样也就不能保证查找的期望时间复杂度为常数级了。这时。我们应该对桶数组进行一次容量扩张，让size增大 。</p>
-<p>这样就能保证加入元素后 used &#x2F; size 仍然小于等于1 ， 从而保证查找的期望时间复杂度为O(1).可是。怎样进行容量扩张呢？ C++中的vector的容量扩张是一种好方法。</p>
-<p>于是有了例如以下思路 ：　Hash表中每次发现loadFactor&#x3D;&#x3D;1时，就开辟一个原来桶数组的两倍空间（称为新桶数组），然后把原来的桶数组中元素所有转移过来到新的桶数组中。注意这里转移是须要元素一个个又一次哈希到新桶中的。原因后面会讲到。</p>
-<p>   这样的方法的缺点是，容量扩张是一次完毕的，期间要花非常长时间一次转移hash表中的全部元素。这样在hash表中loadFactor&#x3D;&#x3D;1时。往里边插入一个元素将会等候非常长的时间。</p>
-<h4 id="4、Redis中的实现"><a href="#4、Redis中的实现" class="headerlink" title="4、Redis中的实现"></a>4、Redis中的实现</h4><ol>
-<li><p>Redis 是一个高效的 key-value 缓存系统，也可以理解为基于键值对的数据库。</p>
-</li>
-<li><p>Redis也是采取<strong>链地址法</strong>解决哈希冲突。</p>
-</li>
-<li><p>我们知道，Java发生扩容的瞬间，是需要先将原哈希表中所有键值对都转移到新的哈希表中，这个过程是比较慢的，此时插入该元素的性能相当低。</p>
-</li>
-<li><p>而Redis对于这一部分，采取的是<strong>分摊转移</strong>的方式。即当插入一个新元素x触发了扩容时，先转移第一个不为空的桶到新的哈希表，然后将该元素插入。而下一次再次插入时，继续转移旧哈希表中第一个不为空的桶，再插入元素。直至旧哈希表为空为止。这样一来，理想情况下，插入的时间复杂度是O(1)。</p>
-</li>
-<li><p>在Redis的实现中，新插入的键值对会放在箱子中链表的头部，而不是在尾部继续插入。</p>
-</li>
-<li><p>这种方案是基于两点考虑：</p>
-</li>
-<li><p>一是由于找到链表尾部的时间复杂度为O(n)，且需要额外的内存地址来保存链表的尾部位置，而头插法的时间复杂度为O(1)。</p>
-</li>
-<li><p>二是处于Redis的实际应用场景来考虑。对于一个数据库系统来说，最新插入的数据往往更可能频繁地被获取，所以这样也能节省查找的耗时</p>
-</li>
-</ol>
-<h2 id="五、ConcurrentHashMap、HashTable、HashMap区别"><a href="#五、ConcurrentHashMap、HashTable、HashMap区别" class="headerlink" title="五、ConcurrentHashMap、HashTable、HashMap区别"></a>五、ConcurrentHashMap、HashTable、HashMap区别</h2><h3 id="1、HashMap"><a href="#1、HashMap" class="headerlink" title="1、HashMap"></a>1、HashMap</h3><p>因为多线程环境下，使用Hashmap进行put操作可能会引起死锁，导致CPU利用率接近100%，所以在并发情况下不能使用HashMap。【PS：HashMap 是允许key值为空的】</p>
-<h3 id="2、HashTable"><a href="#2、HashTable" class="headerlink" title="2、HashTable"></a>2、HashTable</h3><p>Hashtable容器使用synchronized来保证线程安全，但在线程竞争激烈的情况下Hashtable的效率非常低下。因为当一个线程访问Hashtable的同步方法时，其他线程访问Hashtable的同步方法时，可能会进入阻塞或轮询状态。如线程1使用put进行添加元素，线程2不但不能使用put方法添加元素，并且也不能使用get方法来获取元素，所以竞争越激烈效率越低。</p>
-<p><img src="/2021/08/18/hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84-hashmap%E5%BA%95%E5%B1%82%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84/image-ba4fef5ef17740c79a373e929b5db03f.png" alt="image.png"></p>
-<h3 id="3、ConcurrentHashMap"><a href="#3、ConcurrentHashMap" class="headerlink" title="3、ConcurrentHashMap"></a>3、ConcurrentHashMap</h3><p><strong>1）jdk7版本</strong></p>
-<p>ConcurrentHashMap和HashMap设计思路差不多，但是为支持并发操作，做了一定的改进，ConcurrentHashMap引入Segment 的概念，目的是将map拆分成多个Segment(默认16个)。操作ConcurrentHashMap细化到操作某一个Segment。在多线程环境下，不同线程操作不同的Segment，他们互不影响，这便可实现并发操作。</p>
-<p><strong>2）jdk8版本</strong></p>
-<p>jdk8版本的ConcurrentHashMap相对于jdk7版本，发送了很大改动，jdk8直接抛弃了Segment的设计，采用了  较为轻捷的Node + CAS + Synchronized设计，保证线程安全。</p>
-<p><strong>3）总结</strong></p>
-<p>1、get方法不加锁；</p>
-<p>2、put、remove方法要使用锁</p>
-<p>jdk7使用锁分离机制(Segment分段加锁)</p>
-<p>jdk8使用cas + synchronized 实现锁操作</p>
-<p>3、Iterator对象的使用，运行一边更新，一遍遍历(可以根据原理自己拓展)</p>
-<p>4、复合操作，无法保证线程安全，需要额外加锁保证</p>
-<p>5、并发环境下，ConcurrentHashMap 效率较Collections.synchronizedMap()更高</p>
-]]></content>
-      <categories>
-        <category>默认分类</category>
-      </categories>
   </entry>
   <entry>
     <title>springboot+mybatis_plus实现读写分离</title>
@@ -723,6 +676,53 @@
       <categories>
         <category>默认分类</category>
       </categories>
+  </entry>
+  <entry>
+    <title>springboot 优雅的实现统一返回处理</title>
+    <url>/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/</url>
+    <content><![CDATA[<h1 id="springboot-优雅的实现统一返回处理"><a href="#springboot-优雅的实现统一返回处理" class="headerlink" title="springboot 优雅的实现统一返回处理"></a>springboot 优雅的实现统一返回处理</h1><p>前言：随着前后端分离这种模式的趋势下，后端开发人员更注重后端方面的代码，但是对后端人员在代码编写的过程当中需要越来越规范，这样不仅可以提高开发效率，更可以让代码后期维护起来更加的方便。</p>
+<p>这篇文章主要是当接口返回的统一处理，能够让前端人员有个统一的接收后台的接口返回。</p>
+<h2 id="1、自定义常用的状态码"><a href="#1、自定义常用的状态码" class="headerlink" title="1、自定义常用的状态码"></a>1、自定义常用的状态码</h2><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 自定义状态码枚举</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">enum</span> <span class="title class_">ResultCode</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 操作成功</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    RC200(<span class="number">200</span>, <span class="string">&quot;操作成功&quot;</span>),</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 操作失败</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    RC900(<span class="number">900</span>, <span class="string">&quot;操作失败&quot;</span>),</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 服务异常</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    RC500(<span class="number">500</span>, <span class="string">&quot;系统异常，请稍后重试&quot;</span>);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 自定义状态码</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> <span class="type">int</span> code;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 自定义描述</span></span><br><span class="line"><span class="comment">     **/</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> String message;</span><br><span class="line"></span><br><span class="line">    ResultCode(<span class="type">int</span> code, String message) &#123;</span><br><span class="line">        <span class="built_in">this</span>.code = code;</span><br><span class="line">        <span class="built_in">this</span>.message = message;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="type">int</span> <span class="title function_">getCode</span><span class="params">()</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> code;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> String <span class="title function_">getMessage</span><span class="params">()</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> message;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<p>当然可以定义定义一些其他状态码，可以让前端根据不同的状态码进行不同的处理，这里只定义部分常用状态码。</p>
+<h2 id="2、统一结果返回包装类"><a href="#2、统一结果返回包装类" class="headerlink" title="2、统一结果返回包装类"></a>2、统一结果返回包装类</h2><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">package</span> com.example.spring.response.constant;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> lombok.Data;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 自定义结果包装类</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Data</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">ResultData</span>&lt;T&gt; &#123;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 状态码</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">private</span> <span class="type">int</span> status;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 返回消息</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">private</span> String message;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 返回的结果</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">private</span> T data;</span><br><span class="line">    </span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 有结果返回值操作成功</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> data 数据</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> &lt;T&gt;  泛型</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> 包装结果</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> &lt;T&gt; ResultData&lt;T&gt; <span class="title function_">success</span><span class="params">(T data)</span> &#123;</span><br><span class="line">        ResultData&lt;T&gt; resultData = <span class="keyword">new</span> <span class="title class_">ResultData</span>&lt;&gt;();</span><br><span class="line">        resultData.setStatus(ResultCode.RC200.getCode());</span><br><span class="line">        resultData.setMessage(ResultCode.RC200.getMessage());</span><br><span class="line">        resultData.setData(data);</span><br><span class="line">        <span class="keyword">return</span> resultData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 无结果返回值操作成功</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> &lt;T&gt;  泛型</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> 包装结果</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> &lt;T&gt; ResultData&lt;T&gt; <span class="title function_">success</span><span class="params">()</span> &#123;</span><br><span class="line">        ResultData&lt;T&gt; resultData = <span class="keyword">new</span> <span class="title class_">ResultData</span>&lt;&gt;();</span><br><span class="line">        resultData.setStatus(ResultCode.RC200.getCode());</span><br><span class="line">        resultData.setMessage(ResultCode.RC200.getMessage());</span><br><span class="line">        <span class="keyword">return</span> resultData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 有状态码的失败</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> code    状态码</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> message 失败消息</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> &lt;T&gt;     泛型</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> 包装失败</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> &lt;T&gt; ResultData&lt;T&gt; <span class="title function_">fail</span><span class="params">(<span class="type">int</span> code, String message)</span> &#123;</span><br><span class="line">        ResultData&lt;T&gt; resultData = <span class="keyword">new</span> <span class="title class_">ResultData</span>&lt;&gt;();</span><br><span class="line">        resultData.setStatus(code);</span><br><span class="line">        resultData.setMessage(message);</span><br><span class="line">        <span class="keyword">return</span> resultData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 无状态码的失败</span></span><br><span class="line"><span class="comment">     *</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> message 失败消息</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> &lt;T&gt;     泛型</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> 包装失败</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">static</span> &lt;T&gt; ResultData&lt;T&gt; <span class="title function_">fail</span><span class="params">( String message)</span> &#123;</span><br><span class="line">        ResultData&lt;T&gt; resultData = <span class="keyword">new</span> <span class="title class_">ResultData</span>&lt;&gt;();</span><br><span class="line">        resultData.setStatus(ResultCode.RC999.getCode());</span><br><span class="line">        resultData.setMessage(message);</span><br><span class="line">        <span class="keyword">return</span> resultData;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>这里只封装的部分方法，可以根据自己的实际需求封装不同方法。</p>
+<p><strong>写一个简单的请求demo</strong></p>
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="meta">@GetMapping(&quot;/getHi&quot;)</span></span><br><span class="line">   <span class="keyword">public</span> ResultData&lt;String&gt; <span class="title function_">getHi</span><span class="params">()</span>&#123;</span><br><span class="line">       <span class="keyword">return</span> ResultData.success(<span class="string">&quot;hi&quot;</span>);</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>返回结果</strong></p>
+<p><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/1.png"></p>
+<p><strong>模拟一个服务器的异常</strong></p>
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="meta">@GetMapping(&quot;/getHi&quot;)</span></span><br><span class="line">    <span class="keyword">public</span> ResultData&lt;String&gt; <span class="title function_">getHi</span><span class="params">()</span>&#123;</span><br><span class="line">        <span class="type">int</span> <span class="variable">a</span> <span class="operator">=</span> <span class="number">1</span>/<span class="number">0</span>;</span><br><span class="line">        <span class="keyword">return</span> ResultData.success(<span class="string">&quot;hi&quot;</span>);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>结果</strong></p>
+<p><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/2.png" alt="2"></p>
+<p>这种返回结果肯定不是前端开发人员想处理的，所以我们还要对服务端如果出现一个异常，也需要处理统一的返回格式。</p>
+<h2 id="3、自定义异常类，以及全局异常处理"><a href="#3、自定义异常类，以及全局异常处理" class="headerlink" title="3、自定义异常类，以及全局异常处理"></a>3、自定义异常类，以及全局异常处理</h2><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">package</span> com.example.spring.response.exception;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.constant.ResultCode;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 自定义义务异常</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">BizException</span> <span class="keyword">extends</span> <span class="title class_">RuntimeException</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> ResultCode resultCode;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="title function_">BizException</span><span class="params">(String message)</span> &#123;</span><br><span class="line">        <span class="built_in">super</span>(message);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="title function_">BizException</span><span class="params">(ResultCode resultCode)</span> &#123;</span><br><span class="line">        <span class="built_in">super</span>(resultCode.getMessage());</span><br><span class="line">        <span class="built_in">this</span>.resultCode = resultCode;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> String <span class="title function_">getMessage</span><span class="params">()</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="built_in">super</span>.getMessage();</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br><span class="line"></span><br></pre></td></tr></table></figure>
+
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">package</span> com.example.spring.response.handler;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.constant.ResultCode;</span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.constant.ResultData;</span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.exception.BizException;</span><br><span class="line"><span class="keyword">import</span> lombok.extern.slf4j.Slf4j;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.HttpStatus;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.bind.annotation.ExceptionHandler;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.bind.annotation.ResponseStatus;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.bind.annotation.RestControllerAdvice;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 全局统一异常处理</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@Slf4j</span></span><br><span class="line"><span class="meta">@RestControllerAdvice</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">RestExceptionHandler</span> &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 自定义异常处理。</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> e the e</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> ResultData</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@ExceptionHandler(BizException.class)</span></span><br><span class="line">    <span class="meta">@ResponseStatus(HttpStatus.EXPECTATION_FAILED)</span></span><br><span class="line">    <span class="keyword">public</span> ResultData&lt;String&gt; <span class="title function_">exception</span><span class="params">(BizException e)</span> &#123;</span><br><span class="line">        log.error(<span class="string">&quot;全局异常信息 e=&#123;&#125;&quot;</span>, e.getMessage(), e);</span><br><span class="line">        <span class="keyword">return</span> ResultData.fail(e.getMessage());</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 默认全局异常处理。</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@param</span> e the e</span></span><br><span class="line"><span class="comment">     * <span class="doctag">@return</span> ResultData</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@ExceptionHandler(Exception.class)</span></span><br><span class="line">    <span class="meta">@ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)</span></span><br><span class="line">    <span class="keyword">public</span> ResultData&lt;String&gt; <span class="title function_">exception</span><span class="params">(Exception e)</span> &#123;</span><br><span class="line">        log.error(<span class="string">&quot;全局异常信息 e=&#123;&#125;&quot;</span>, e.getMessage(), e);</span><br><span class="line">        <span class="keyword">return</span> ResultData.fail(ResultCode.RC500.getCode(),e.getMessage());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>运行结果</strong></p>
+<p><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/3.png" alt="3"></p>
+<p>能够正确的返回。</p>
+<p>当时回头一想，统一处理但是每次返回结果的时候自己都得重复手动包装一下自定义的类，这样可以用代码来处理，所以下面实现自动包装返回的结果。</p>
+<h2 id="4、自定义自动包装统一返回类"><a href="#4、自定义自动包装统一返回类" class="headerlink" title="4、自定义自动包装统一返回类"></a>4、自定义自动包装统一返回类</h2><figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="keyword">package</span> com.example.spring.response.handler;</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> com.example.spring.response.constant.ResultData;</span><br><span class="line"><span class="keyword">import</span> com.fasterxml.jackson.databind.ObjectMapper;</span><br><span class="line"><span class="keyword">import</span> lombok.SneakyThrows;</span><br><span class="line"><span class="keyword">import</span> org.springframework.beans.factory.annotation.Autowired;</span><br><span class="line"><span class="keyword">import</span> org.springframework.core.MethodParameter;</span><br><span class="line"><span class="keyword">import</span> org.springframework.core.io.Resource;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.MediaType;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.converter.HttpMessageConverter;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.server.ServerHttpRequest;</span><br><span class="line"><span class="keyword">import</span> org.springframework.http.server.ServerHttpResponse;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.bind.annotation.RestControllerAdvice;</span><br><span class="line"><span class="keyword">import</span> org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment"> * 统一包装返回结果</span></span><br><span class="line"><span class="comment"> *</span></span><br><span class="line"><span class="comment"> * <span class="doctag">@author</span> wls</span></span><br><span class="line"><span class="comment"> */</span></span><br><span class="line"><span class="meta">@RestControllerAdvice</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title class_">ResponseAdvice</span> <span class="keyword">implements</span> <span class="title class_">ResponseBodyAdvice</span>&lt;Object&gt; &#123;</span><br><span class="line">    <span class="meta">@Autowired</span></span><br><span class="line">    <span class="keyword">private</span> ObjectMapper objectMapper;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> <span class="type">boolean</span> <span class="title function_">supports</span><span class="params">(MethodParameter methodParameter, Class&lt;? extends HttpMessageConverter&lt;?&gt;&gt; aClass)</span> &#123;</span><br><span class="line">        <span class="comment">//返回true则对返回值需要处理</span></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/**</span></span><br><span class="line"><span class="comment">     * 接口返回前包装结果</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="meta">@SneakyThrows</span></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="keyword">public</span> Object <span class="title function_">beforeBodyWrite</span><span class="params">(Object o, MethodParameter methodParameter, MediaType mediaType, Class&lt;? extends HttpMessageConverter&lt;?&gt;&gt; aClass, ServerHttpRequest serverHttpRequest, ServerHttpResponse serverHttpResponse)</span> &#123;</span><br><span class="line">        <span class="comment">//如果是String类型，转为json</span></span><br><span class="line">        <span class="keyword">if</span> (o <span class="keyword">instanceof</span> String) &#123;</span><br><span class="line">            <span class="keyword">return</span> objectMapper.writeValueAsString(ResultData.success(o));</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//如果异常、文件形式，直接返回</span></span><br><span class="line">        <span class="keyword">if</span> (o <span class="keyword">instanceof</span> ResultData || o <span class="keyword">instanceof</span> Resource ) &#123;</span><br><span class="line">            <span class="keyword">return</span> o;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> ResultData.success(o);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>写个demo测试一下</p>
+<figure class="highlight java"><table><tr><td class="code"><pre><span class="line"><span class="meta">@GetMapping(&quot;getWorld&quot;)</span></span><br><span class="line">   <span class="keyword">public</span> Order <span class="title function_">getWorld</span><span class="params">()</span>&#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">Order</span>(<span class="number">1L</span>,<span class="string">&quot;购物车&quot;</span>);</span><br><span class="line">   &#125;</span><br><span class="line"></span><br><span class="line">   <span class="meta">@GetMapping(&quot;/getError&quot;)</span></span><br><span class="line">   <span class="keyword">public</span> Order <span class="title function_">getError</span><span class="params">()</span>&#123;</span><br><span class="line">       <span class="keyword">throw</span> <span class="keyword">new</span> <span class="title class_">BizException</span>(<span class="string">&quot;失败了&quot;</span>);</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+
+<p>返回结果：</p>
+<p><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/5.png" alt="5"><img src="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/6.png" alt="6"></p>
+<p>这样就可以优雅的实现统一返回值的处理。</p>
+<h3 id="注意"><a href="#注意" class="headerlink" title="注意:"></a>注意:</h3><p>特别注意这个类的判断！！！</p>
+]]></content>
+      <categories>
+        <category>默认分类</category>
+      </categories>
+      <tags>
+        <tag>cloud</tag>
+      </tags>
   </entry>
   <entry>
     <title>springboot+redisson实现分布式锁</title>
