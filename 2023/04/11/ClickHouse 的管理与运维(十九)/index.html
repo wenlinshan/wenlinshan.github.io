@@ -1,0 +1,420 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"><title>ClickHouse 的管理与运维 | 热心市民温温</title><meta name="author" content="wenwen"><meta name="copyright" content="wenwen"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="ClickHouse 的管理与运维​																	本文来源： ( https:&#x2F;&#x2F;www.cnblogs.com&#x2F;traditional&#x2F;tag&#x2F;ClickHouse：一款速度快到让人发指的列式存储数据库&#x2F; )   楔子下面来说一下 ClickHouse 管理和运维相关的知识，该部分可以让 ClickHouse 变得更加安全与健壮。在前面演示的案例中，为了方便，我们一直使用默认">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ClickHouse 的管理与运维">
+<meta property="og:url" content="https://hesay.cn/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/index.html">
+<meta property="og:site_name" content="热心市民温温">
+<meta property="og:description" content="ClickHouse 的管理与运维​																	本文来源： ( https:&#x2F;&#x2F;www.cnblogs.com&#x2F;traditional&#x2F;tag&#x2F;ClickHouse：一款速度快到让人发指的列式存储数据库&#x2F; )   楔子下面来说一下 ClickHouse 管理和运维相关的知识，该部分可以让 ClickHouse 变得更加安全与健壮。在前面演示的案例中，为了方便，我们一直使用默认">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://hesay.cn/img/favicon.png">
+<meta property="article:published_time" content="2023-04-11T09:04:31.000Z">
+<meta property="article:modified_time" content="2023-04-13T09:06:57.974Z">
+<meta property="article:author" content="wenwen">
+<meta property="article:tag" content="ClickHouse">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://hesay.cn/img/favicon.png"><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://hesay.cn/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  source: {
+    justifiedGallery: {
+      js: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.js',
+      css: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.css'
+    }
+  },
+  isPhotoFigcaption: false,
+  islazyload: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  }
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'ClickHouse 的管理与运维',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2023-04-13 17:06:57'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(win=>{
+    win.saveToLocal = {
+      set: function setWithExpiry(key, value, ttl) {
+        if (ttl === 0) return
+        const now = new Date()
+        const expiryDay = ttl * 86400000
+        const item = {
+          value: value,
+          expiry: now.getTime() + expiryDay,
+        }
+        localStorage.setItem(key, JSON.stringify(item))
+      },
+
+      get: function getWithExpiry(key) {
+        const itemStr = localStorage.getItem(key)
+
+        if (!itemStr) {
+          return undefined
+        }
+        const item = JSON.parse(itemStr)
+        const now = new Date()
+
+        if (now.getTime() > item.expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return item.value
+      }
+    }
+  
+    win.getScript = url => new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = url
+      script.async = true
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    })
+  
+    win.getCSS = (url,id = false) => new Promise((resolve, reject) => {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = url
+      if (id) link.id = id
+      link.onerror = reject
+      link.onload = link.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        link.onload = link.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(link)
+    })
+  
+      win.activateDarkMode = function () {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = function () {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+          if (t === 'dark') activateDarkMode()
+          else if (t === 'light') activateLightMode()
+        
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+    const detectApple = () => {
+      if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+    })(window)</script><meta name="generator" content="Hexo 6.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src="/img/favicon.png" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fa fa-graduation-cap"></i><span> 博文</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></li></ul></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-list"></i><span> 生活</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/shuoshuo/"><i class="fa-fw fa fa-comments-o"></i><span> 分享</span></a></li><li><a class="site-page child" href="/photos/"><i class="fa-fw fa fa-camera-retro"></i><span> 相册</span></a></li><li><a class="site-page child" href="/music/"><i class="fa-fw fa fa-music"></i><span> 音乐</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> 影视</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/links/"><i class="fa-fw fa fa-link"></i><span> 友链</span></a></div><div class="menus_item"><a class="site-page" href="/comment/"><i class="fa-fw fa fa-paper-plane"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于笔者</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="not-top-img" id="page-header"><nav id="nav"><span id="blog-info"><a href="/" title="热心市民温温"><span class="site-name">热心市民温温</span></a></span><div id="menus"><div id="search-button"><a class="site-page social-icon search" href="javascript:void(0);"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fa fa-graduation-cap"></i><span> 博文</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></li></ul></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-list"></i><span> 生活</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/shuoshuo/"><i class="fa-fw fa fa-comments-o"></i><span> 分享</span></a></li><li><a class="site-page child" href="/photos/"><i class="fa-fw fa fa-camera-retro"></i><span> 相册</span></a></li><li><a class="site-page child" href="/music/"><i class="fa-fw fa fa-music"></i><span> 音乐</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> 影视</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/links/"><i class="fa-fw fa fa-link"></i><span> 友链</span></a></div><div class="menus_item"><a class="site-page" href="/comment/"><i class="fa-fw fa fa-paper-plane"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于笔者</span></a></div></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);"><i class="fas fa-bars fa-fw"></i></a></div></div></nav></header><main class="layout" id="content-inner"><div id="post"><div id="post-info"><h1 class="post-title">ClickHouse 的管理与运维</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2023-04-13T09:06:57.974Z" title="更新于 2023-04-13 17:06:57">2023-04-13</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ClickHouse/">ClickHouse</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="ClickHouse 的管理与运维"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div><article class="post-content" id="article-container"><h1 id="ClickHouse-的管理与运维"><a href="#ClickHouse-的管理与运维" class="headerlink" title="ClickHouse 的管理与运维"></a>ClickHouse 的管理与运维</h1><p>​																	本文来源： ( <a target="_blank" rel="noopener" href="https://www.cnblogs.com/traditional/tag/ClickHouse%EF%BC%9A%E4%B8%80%E6%AC%BE%E9%80%9F%E5%BA%A6%E5%BF%AB%E5%88%B0%E8%AE%A9%E4%BA%BA%E5%8F%91%E6%8C%87%E7%9A%84%E5%88%97%E5%BC%8F%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E5%BA%93/">https://www.cnblogs.com/traditional/tag/ClickHouse：一款速度快到让人发指的列式存储数据库/</a> ) </p>
+<hr>
+<h2 id="楔子"><a href="#楔子" class="headerlink" title="楔子"></a>楔子</h2><p><strong>下面来说一下 ClickHouse 管理和运维相关的知识，该部分可以让 ClickHouse 变得更加安全与健壮。在前面演示的案例中，为了方便，我们一直使用默认的 default 用户，并且没有配置密码，这显然不符合生产环境的要求。所以接下来，我们就来介绍 ClickHouse 的权限、熔断机制、数据备份和服务监控等知识。</strong></p>
+<h2 id="用户配置"><a href="#用户配置" class="headerlink" title="用户配置"></a>用户配置</h2><p><strong>users.xml 配置文件默认位于 &#x2F;etc&#x2F;clickhouse-server 路径下，ClickHouse 用它来定义用户相关的配置项，包括系统参数的设定、用户的定义、权限以及熔断机制等。</strong></p>
+<h3 id="用户的角色配置（profile）"><a href="#用户的角色配置（profile）" class="headerlink" title="用户的角色配置（profile）"></a>用户的角色配置（profile）</h3><p><strong>在 users.xml 中有一个 profiles 标签，在该标签中我们可以定义用户角色，先看看默认配置：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182628794-2170109.png" alt="img"></p>
+<p><strong>这是 ClickHouse 的默认配置，显然默认有两个角色，分别是 default 和 readonly。需要注意的是，这里的 default 和 readonly 指的是角色，每一个用户都具有一个角色。我们可以在 CLI 中直接切换到想要的角色：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SET profile = &#x27;角色名&#x27;</span><br></pre></td></tr></table></figure>
+
+<p><strong>我们可以测试一下，首先我们默认使用的是 default 用户，该用户对应的角色默认也是 default。然后还有一个 readonly 角色，从名字上也能看出该角色只能读数据，无法写数据，因为内部的 readonly 属性为 1，默认为 0。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182636026-1515976262.png" alt="img"></p>
+<p><strong>当 default 用户具有 default 角色时，写数据一切正常，但是将 default 用户的角色切换为 readonly 时则被告知：Cannot execute query in readonly mode。当然，如果我们在 default 角色对应配置中也加上 1，那么具有该角色的用户同样也会无法写数据。</strong></p>
+<p><strong>在所有的角色配置（profile）中，名称为 default 的 profile 将作为默认的配置被加载，所以它必须存在。如果缺失名为 default 的 profile，那么 ClickHouse Server 会启动失败：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Application: DB::Exception: Settings profile`default`not found</span><br></pre></td></tr></table></figure>
+
+<p><strong>profile 还支持继承，实现继承的方式是在定义中引用其他的 profile 名称，例如：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">my_role</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">profile</span>&gt;</span>default<span class="tag">&lt;/<span class="name">profile</span>&gt;</span></span><br><span class="line">    <span class="comment">&lt;!-- &lt;profile&gt;default2&lt;/profile&gt; 可以继承多个--&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">distributed_product_mode</span>&gt;</span>deny<span class="tag">&lt;/<span class="name">distributed_product_mode</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">my_role</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>相当于新建了一个名为 my_role 的角色，然后在对应的 profile 中继承了 default 的所有配置项，并且使用新的参数值覆盖了 default 中原有的 distributed_product_mode 配置项。</strong></p>
+<h3 id="配置约束"><a href="#配置约束" class="headerlink" title="配置约束"></a>配置约束</h3><p><strong>constraints 标签可以设置一组约束条件，以保障 profile 内的参数值不会被随意修改，约束条件有如下三种规则：</strong></p>
+<ul>
+<li><code>min：最小值约束，在设置相应参数的时候，取值不能小于该阈值</code></li>
+<li><code>max：最小值约束，在设置相应参数的时候，取值不能大于该阈值</code></li>
+<li><code>readonly：只读约束，该参数值不能被修改</code></li>
+</ul>
+<p><strong>下面举例说明：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182646442-224064581.png" alt="img"></p>
+<p><strong>从上面的配置定义中可以看出，在 default 默认的 profile 内，给两组参数设置了约束。首先为 max_memory_usage 设置了 min 和 max 阈值；其次为 distributed_product_mode 设置了只读约束。然后重启 ClickHouse，并尝试修改 max_memory_usage 参数，将它改为 50：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182654179-1342486270.png" alt="img"></p>
+<p><strong>可以看到最小值约束阻止了这次修改，接着继续修改 distributed_product_mode 的值：</strong></p>
+<p><img src="https://img2020.cnblogs.com/blog/1229382/202110/1229382-20211008182703966-1769998673.png" alt="img"></p>
+<p><strong>同样配置约束成功阻止了预期外的修改。还有一点需要明确，在 default 中默认定义的 constraints 约束，将作为默认的全局约束，自动被其它 profile 继承。</strong></p>
+<h3 id="用户"><a href="#用户" class="headerlink" title="用户"></a>用户</h3><p><strong>通过 profiles 标签可以为用户定义角色，那么可不可以定义用户呢？显然是可以的，通过 users 标签即可。如果打开配置文件，会发现 users 标签下已经有一个默认的 default 用户，我们之前使用的一直都是这个用户，而我们也可以定义一个新用户，但必须包含如下属性：</strong></p>
+<p><strong>password</strong></p>
+<p><strong>password 用于设置登录密码，支持明文、SHA256 加密和 double_sha1 加密三种形式，可以任选其中一种进行设置。现在分别介绍它们的使用方法。</strong></p>
+<p><strong>1）明文密码：在使用明文密码的时候，直接通过 password 标签定义，例如下面的代码。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">password</span>&gt;</span>123<span class="tag">&lt;/<span class="name">password</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>如果 password 为空，则表示免密码登录。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">password</span>&gt;</span><span class="tag">&lt;/<span class="name">password</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>2）SHA256 加密：在使用 SHA256 加密算法的时候，需要通过 password_sha256_hex 标签定义密码，例如下面的代码。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">password_sha256_hexs</span>&gt;</span>a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3<span class="tag">&lt;/<span class="name">password_sha256_hexs</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>至于计算的方式，可以通过如下命令，比如对 123 进行加密：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[root@satori ~]<span class="comment"># echo -n 123 |openssl dgst -sha256</span></span><br><span class="line">(stdin)= a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3</span><br></pre></td></tr></table></figure>
+
+<p><strong>或者使用 Python：</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&gt;&gt;&gt; </span><span class="keyword">import</span> hashlib</span><br><span class="line"><span class="meta">&gt;&gt;&gt; </span>hashlib.sha256(<span class="string">b&quot;123&quot;</span>).hexdigest()</span><br><span class="line"><span class="string">&#x27;a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3&#x27;</span></span><br><span class="line">&gt;&gt;&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>3）double_sha1 加密：在使用 double_sha1 加密算法的时候，则需要通过 password_double_sha1_hex 标签定义密码，例如下面的代码。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">password_double_sha1_hex</span>&gt;</span>23ae809ddacaf96af0fd78ed04b6a265e05aa257<span class="tag">&lt;/<span class="name">password_double_sha1_hex</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>至于计算的方式，可以通过如下命令，比如对 123 进行加密：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[root@satori ~]<span class="comment"># echo -n 123 | openssl dgst -sha1 -binary | openssl dgst -sha1</span></span><br><span class="line">(stdin)= 23ae809ddacaf96af0fd78ed04b6a265e05aa257</span><br></pre></td></tr></table></figure>
+
+<p><strong>或者使用 Python：</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&gt;&gt;&gt; </span><span class="keyword">import</span> hashlib</span><br><span class="line"><span class="meta">&gt;&gt;&gt; </span>_ = hashlib.sha1(<span class="string">b&quot;123&quot;</span>).digest()</span><br><span class="line"><span class="meta">&gt;&gt;&gt; </span>hashlib.sha1(_).hexdigest()</span><br><span class="line"><span class="string">&#x27;23ae809ddacaf96af0fd78ed04b6a265e05aa257&#x27;</span></span><br><span class="line">&gt;&gt;&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>networks</strong></p>
+<p><strong>networks 表示被允许登录的网络地址，用于限制用户登录的客户端地址，关于这方面的介绍将会在后续展开。</strong></p>
+<p><strong>profile</strong></p>
+<p><strong>用户所使用的角色，直接引用相应的名称即可，例如：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">profile</span>&gt;</span>profile_1<span class="tag">&lt;/<span class="name">profile</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>该配置的语义表示：该用户使用了名为 profile_1 的角色。</strong></p>
+<p><strong>quota</strong></p>
+<p><strong>quota 用于设置该用户能够使用的资源限额，可以理解成一种熔断机制。关于这方面的介绍同样将会在后续展开。</strong></p>
+<p><strong>下面我们就来定义一个完整的实例来定义三个用户，密码分别使用明文密码、sha256 加密、double sha1 加密：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">users</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">default</span>&gt;</span>  <span class="comment">&lt;!-- 默认用户 --&gt;</span></span><br><span class="line">        ...</span><br><span class="line">    <span class="tag">&lt;/<span class="name">default</span>&gt;</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">&lt;!-- 使用明文密码 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">user_plaintext</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">password</span>&gt;</span>123<span class="tag">&lt;/<span class="name">password</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">networks</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">ip</span>&gt;</span>::/0<span class="tag">&lt;/<span class="name">ip</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">networks</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">profile</span>&gt;</span>default<span class="tag">&lt;/<span class="name">profile</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">quota</span>&gt;</span>default<span class="tag">&lt;/<span class="name">quota</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">user_plaintext</span>&gt;</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">&lt;!-- 使用 sha256 加密 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">user_sha256</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">password_sha256_hex</span>&gt;</span>a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3<span class="tag">&lt;/<span class="name">password_sha256_hex</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">networks</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">ip</span>&gt;</span>::/0<span class="tag">&lt;/<span class="name">ip</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">networks</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">profile</span>&gt;</span>default<span class="tag">&lt;/<span class="name">profile</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">quota</span>&gt;</span>default<span class="tag">&lt;/<span class="name">quota</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">user_sha256</span>&gt;</span></span><br><span class="line">    </span><br><span class="line">    <span class="comment">&lt;!-- 使用 double sha1 加密 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">user_double_sha1</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">password_double_sha1_hex</span>&gt;</span>23ae809ddacaf96af0fd78ed04b6a265e05aa257<span class="tag">&lt;/<span class="name">password_double_sha1_hex</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">networks</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">ip</span>&gt;</span>::/0<span class="tag">&lt;/<span class="name">ip</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">networks</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">profile</span>&gt;</span>default<span class="tag">&lt;/<span class="name">profile</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">quota</span>&gt;</span>default<span class="tag">&lt;/<span class="name">quota</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">user_double_sha1</span>&gt;</span>    </span><br><span class="line"><span class="tag">&lt;/<span class="name">users</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>由于配置了密码，那么以后使用指定用户登录时，就必须指定密码了，举个栗子：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182722735-2046681283.png" alt="img"></p>
+<p><strong>–host 指定 IP，–port 指定端口，–user 指定用户，我们看到指定用户为 user_plaintext 进行登录的时候报错的，原因就是该用户设置了密码，但我们没有指定。而通过 –password 指定密码之后，便可登录成功了。</strong></p>
+<p><strong>至于其它用户类似：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 配置文件中写的是加密后的结果，但是登录时，密码还是使用加密前的结果，这里是 123</span></span><br><span class="line">clickhouse-client --user user_sha256 --password 123</span><br><span class="line">clickhouse-client --user user_double_sha1 --password 123</span><br></pre></td></tr></table></figure>
+
+<h2 id="权限管理"><a href="#权限管理" class="headerlink" title="权限管理"></a>权限管理</h2><p><strong>权限管理是一个始终都绕不开的话题，ClickHouse 分别从访问、查询和数据等角度出发，层层递进，为我们提供了一个较为立体的权限体系。</strong></p>
+<h3 id="访问权限"><a href="#访问权限" class="headerlink" title="访问权限"></a>访问权限</h3><p><strong>访问层控制是整个权限体系的第一层防护，它又可进一步细分成两类权限。</strong></p>
+<p><strong>网络访问权限</strong></p>
+<p><strong>网络访问权限使用 networks 标签设置，用于限制客户端登录的地址，限制方式可以通过 IP 地址、host 主机名称实现，两者选其一即可。</strong></p>
+<p><strong>比如通过 IP 地址设置：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">&lt;!-- 只能通过 IP 为 127.0.0.1 的主机访问 --&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">ip</span>&gt;</span>127.0.0.1<span class="tag">&lt;/<span class="name">ip</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>通过 host 主机名称设置：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">&lt;!-- 只能通过主机名为 satori 的主机访问，另外这里配置主机名的时候还可以使用正则 --&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">host</span>&gt;</span>satori<span class="tag">&lt;/<span class="name">host</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>数据库与字典访问权限</strong></p>
+<p><strong>在客户端连入服务之后，可以进一步限制某个用户数据库和字典的访问权限，它们分别通过 allow_databases 和 allow_dictionaries 标签进行设置。如果不进行定义，则表示不进行限制。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">user_plaintext</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">password</span>&gt;</span>123<span class="tag">&lt;/<span class="name">password</span>&gt;</span></span><br><span class="line">    ...</span><br><span class="line">    </span><br><span class="line">    <span class="tag">&lt;<span class="name">allow_databases</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">database</span>&gt;</span>default<span class="tag">&lt;/<span class="name">database</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">database</span>&gt;</span>kagura_nana<span class="tag">&lt;/<span class="name">database</span>&gt;</span>        </span><br><span class="line">    <span class="tag">&lt;/<span class="name">allow_databases</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">allow_dictionaries</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">dictionary</span>&gt;</span>test_dict<span class="tag">&lt;/<span class="name">dictionary</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">allow_dictionaries</span>&gt;</span>    </span><br><span class="line"><span class="tag">&lt;/<span class="name">user_plaintext</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>通过上述操作，该用户在登录之后，将只能看到为其开放了访问权限的数据库和字典。</strong></p>
+<h3 id="查询权限"><a href="#查询权限" class="headerlink" title="查询权限"></a>查询权限</h3><p><strong>查询权限是整个权限体系的第二层防护，设置在 profile 中，它决定了拥有此角色的用户能够执行的查询语句，查询权限可以分为以下四类：</strong></p>
+<ul>
+<li><code>读权限：包括 SELECT、EXISTS、SHOW 和 DESCRIBE 查询</code></li>
+<li><code>写权限：包括 INSERT 和 OPTIMIZE 查询</code></li>
+<li><code>设置权限：包括 SET 查询</code></li>
+<li><code>DDL 权限：包括 CREATE、DROP、ALTER、RENAME、ATTACH、DETACH 和 TRUNCATE 查询</code></li>
+<li><code>其它权限：包括 KILL 和 USE 查询，任何用户都可以执行这些查询</code></li>
+</ul>
+<p><strong>上述权限，可以通过以下两项配置标签控制：</strong></p>
+<ul>
+<li><strong>1）readonly：读权限、写权限和设置权限均由此标签控制，它有三种取值：</strong><ul>
+<li><code>当取值为 0 时，表示不进行任何限制（默认值）</code></li>
+<li><code>当取值为 1 时，表示只拥有读权限，即只能执行 SELECT 、EXISTS、SHOW 和 DESCRIBE</code></li>
+<li><code>当取值为 2 时，表示拥有读权限和设置权限，相当于在读权限的基础上增加了 SET 查询</code></li>
+</ul>
+</li>
+<li><strong>2）allow_ddl：DDL 权限由此标签控制，它有两种取值：</strong><ul>
+<li><code>当取值为 0 时，不允许 DDL 查询</code></li>
+<li><code>当取值为 1 时，允许 DDL 查询（默认值）</code></li>
+</ul>
+</li>
+</ul>
+<p><strong>举个栗子，我们增加一个角色。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">profiles</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">default</span>&gt;</span>...<span class="tag">&lt;/<span class="name">default</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">readonly</span>&gt;</span>...<span class="tag">&lt;/<span class="name">readonly</span>&gt;</span>  </span><br><span class="line">    </span><br><span class="line">    <span class="tag">&lt;<span class="name">profile_test</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">readonly</span>&gt;</span>1<span class="tag">&lt;/<span class="name">readonly</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">allow_ddl</span>&gt;</span>0<span class="tag">&lt;/<span class="name">allow_ddl</span>&gt;</span>        </span><br><span class="line">    <span class="tag">&lt;/<span class="name">profile_test</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">profiles</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>修改配置文件之后，重启 ClickHouse，然后连接：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182735704-1294115794.png" alt="img"></p>
+<p><strong>我们看到切换角色之后，不再具有 DDL 执行权限。当然数据也是只读模式，此时写入数据是失败的。</strong></p>
+<p><strong>至此，权限设置已然生效。</strong></p>
+<h3 id="数据行级权限"><a href="#数据行级权限" class="headerlink" title="数据行级权限"></a>数据行级权限</h3><p><strong>数据权限是整个权限体系中的第三层防护，它决定了一个用户能够看到什么数据，说人话就是数据粒度更细了，可以只将一张表的部分数据暴露给用户。</strong></p>
+<p><strong>而该权限使用 database 标签定义（位于 users 标签内部），database 通过定义用户级别的查询过滤器来实现数据的行级粒度权限，它的定义规则如下所示：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">databases</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">database_name</span>&gt;</span>  <span class="comment">&lt;!-- 数据库名称 --&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">table_name</span>&gt;</span> <span class="comment">&lt;!-- 表名称 --&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">fileter</span>&gt;</span>id &gt; 10<span class="tag">&lt;/<span class="name">fileter</span>&gt;</span>  <span class="comment">&lt;!-- 数据过滤条件，也可以写复杂的条件 --&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">table_name</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">database_name</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">databases</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>我们以之前的 distributed_test_1 为例，测试一下，所以配置文件修改如下：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">user_test_2</span>&gt;</span>  <span class="comment">&lt;!-- 新建一个角色 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">password</span>&gt;</span>123<span class="tag">&lt;/<span class="name">password</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">networks</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">ip</span>&gt;</span>::/0<span class="tag">&lt;/<span class="name">ip</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">networks</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">profile</span>&gt;</span>default<span class="tag">&lt;/<span class="name">profile</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">quota</span>&gt;</span>default<span class="tag">&lt;/<span class="name">quota</span>&gt;</span></span><br><span class="line">    </span><br><span class="line">    <span class="tag">&lt;<span class="name">databases</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">default</span>&gt;</span>  </span><br><span class="line">            <span class="tag">&lt;<span class="name">distributed_test_1</span>&gt;</span> </span><br><span class="line">                <span class="tag">&lt;<span class="name">filter</span>&gt;</span>id &gt; 10<span class="tag">&lt;/<span class="name">filter</span>&gt;</span>  </span><br><span class="line">            <span class="tag">&lt;/<span class="name">distributed_test_1</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">default</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">databases</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">user_test_2</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>修改之后重启 ClickHouse：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182745284-100788997.png" alt="img"></p>
+<p><strong>整个过程还是很好理解的，那么 ClickHouse 底层是怎么做的呢？答案很简单，从配置文件中 filter 标签的内容也能看出来，就是追加了一个 WHERE 条件。</strong></p>
+<p><strong>对于数据权限的使用有一点需要明确，在使用了这项功能之后，PREWHERE 优化将不再生效。所以是直接利用 ClickHouse 的内置过滤器，还是通过拼接 WHERE 查询条件的方式实现行级过滤，需要根据使用场景进行权衡。</strong></p>
+<h2 id="熔断机制"><a href="#熔断机制" class="headerlink" title="熔断机制"></a>熔断机制</h2><p><strong>熔断是限制资源被过度使用的一种自我保护机制，当使用的资源数量达到阈值时，那么正在进行的操作会被自动中断。而按照使用资源统计方式的不同，熔断机制可以分为两类。</strong></p>
+<h4 id="根据时间周期的累积用量熔断"><a href="#根据时间周期的累积用量熔断" class="headerlink" title="根据时间周期的累积用量熔断"></a>根据时间周期的累积用量熔断</h4><p><strong>在这种方式下，系统资源的用量是按照时间周期累积统计的，当累积量达到阚值，则直到下个计算周期开始之前，该用户将无法继续进行操作。这种方式通过 users.xml 内的 quotas 标签来定义资源配额，以默认的配置为例：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182755378-1601344871.png" alt="img"></p>
+<p><strong>看图中最后一行，是 ，显然到此配置文件就结束了，所以 users.xml 中最外层是 yandex 标签，然后 yandex 标签里面有三个子标签，分别是 profiles、users、quotas，分别用于定义角色、定义用户、熔断限流，还是比较简单的，整个结构比较清晰。然后看看 quotas 标签里面的内容都代表什么含义吧。</strong></p>
+<ul>
+<li><code>default：自定义名称，全局唯一</code></li>
+<li><code>duration：累积的时间周期，单位秒</code></li>
+<li><code>queries：在周期内允许执行的查询次数，0 表示不限制</code></li>
+<li><code>errors：在周期内允许发生异常的次数，0 表示不限制</code></li>
+<li><code>result_row：在周期内允许查询返回的结果行数，0 表示不限制</code></li>
+<li><code>read_row：在周期内，在分布式查询中，允许远端节点读取的数据行数，0 表示不限制</code></li>
+<li><code>execution_time：周期内允许执行的查询时间，单位秒，0 表示不限制</code></li>
+</ul>
+<p><strong>我们来配置一下：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">&lt;!-- 在 quotas 标签中增加如下配置 --&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">limit_1</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">interval</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">duration</span>&gt;</span>3600<span class="tag">&lt;/<span class="name">duration</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">queries</span>&gt;</span>2<span class="tag">&lt;/<span class="name">queries</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">errors</span>&gt;</span>0<span class="tag">&lt;/<span class="name">errors</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">result_rows</span>&gt;</span>0<span class="tag">&lt;/<span class="name">result_rows</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">read_rows</span>&gt;</span>0<span class="tag">&lt;/<span class="name">read_rows</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">execution_time</span>&gt;</span>0<span class="tag">&lt;/<span class="name">execution_time</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">interval</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">limit_1</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>在名为 limit_1 的配置中，1 个小时的周期内只允许最多 2 次查询，下面让其作用在 user_test_2 用户上。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">user_test_2</span>&gt;</span> </span><br><span class="line">    ...</span><br><span class="line">    <span class="tag">&lt;<span class="name">quota</span>&gt;</span>limit_1<span class="tag">&lt;/<span class="name">quota</span>&gt;</span> <span class="comment">&lt;!-- 其它部分不变，将 quota 的值从 default 改成 limit_1 --&gt;</span></span><br><span class="line">    ...</span><br><span class="line"><span class="tag">&lt;/<span class="name">user_test_2</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>然后重启 ClickHouse，并以 user_test_2 用户启动。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182808290-1843836494.png" alt="img"></p>
+<p><strong>执行两次查询之后，如果再执行的话就会报错，证明熔断机制确实已经生效。</strong></p>
+<h4 id="根据单次查询的用量熔断"><a href="#根据单次查询的用量熔断" class="headerlink" title="根据单次查询的用量熔断"></a>根据单次查询的用量熔断</h4><p><strong>在这种方式下，系统资源的用量是按照单次查询统计的，而具体的熔断规则，则是由许多不同配置项组成的，这些配置项需要定义在用户 profile 中。如果某次查询使用的资源用量达到了阈值，则会被中断。以配置项 max memory_usage 为例，它限定了单次查询可以使用的内存用量，在默认的情况下其规定不得超过 10 GB，如果一次查询的内存用量超过 10 GB，则会得到异常。需要注意的是，在单次查询的用量统计中，ClickHouse 是以分区为最小单元进行统计的（不是数据行的粒度），这意味着单次查询的实际内存用量是有可能超过阈值的。</strong></p>
+<p><strong>熔断相关的配置比较多，这里介绍几个常用的。</strong></p>
+<p><strong>1）max_memory_usage：在单个 ClickHouse 服务进程中，运行一次查询限制使用的最大内存量，默认值为 10GB。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">max_memory_usage</span>&gt;</span>10000000000<span class="tag">&lt;/<span class="name">max_memory_usage</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>2）max_memory_usage_for_user：在单个 ClickHouse 服务进程中，以用户为单位进行统计，单个用户在运行查询时限制使用的最大内存量，默认值为 0，即不做限制。</strong></p>
+<p><strong>3）max_memory_usage_for_all_queries：在单个 ClickHouse 服务进程中，所有运行的查询累加在一起所限制使用的最大内存量，默认值为 0，即不做限制。</strong></p>
+<p><strong>4）max_partitions_per_insert_block：在单次 INSERT 写入的时候，限制创建的最大分区个数，默认值为 100 个。如果超过这个阈值，将会出现异常。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Too many partitions for single INSERT block ······</span><br></pre></td></tr></table></figure>
+
+<p><strong>5）max_rows_to_group_by：在执行 GROUP BY 聚合查询的时候，限制去重后的聚合 KEY 的最大个数，默认值为 0，不做限制。当超过阈值时，其处理方式由 group_by_overflow_mode 决定。</strong></p>
+<p><strong>6）group_by_overflow_mode：当 max_rows_to_group_by 熔断规则触发时，group_by_overflow_mode 将会提供三种处理方式。</strong></p>
+<ul>
+<li><code>throw：抛出异常，此乃默认值</code></li>
+<li><code>break：立即停止查询，并返回当前数据</code></li>
+<li><code>any：仅根据当前已存在的聚合 KEY 继续完成聚合查询</code></li>
+</ul>
+<p><strong>7）max_bytes_before_external_group_by：在执行 GROUP BY 查询的时候，限制使用的最大内存量，默认值为 0，不做限制。当超过阈值时，聚合查询将会进一步借用本地磁盘。</strong></p>
+<h2 id="数据备份"><a href="#数据备份" class="headerlink" title="数据备份"></a>数据备份</h2><p><strong>在之前的系列中，我们已经知道了数据副本的使用方法，那么问题来了：既然已经有了数据副本，那么还需要数据备份吗？显然数据备份是需要的，因为数据副本并不能处理误删数据这类行为。ClickHouse自身提供了多种备份数据的方法，根据数据规模的不同，可以选择不同的形式。</strong></p>
+<h4 id="导出文件备份"><a href="#导出文件备份" class="headerlink" title="导出文件备份"></a>导出文件备份</h4><p><strong>如果数据的体量较小，可以通过 dump 形式将数据导出为本地文件，语句如下：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">clickhouse-client --query=&quot;SELECT * FROM table_name&quot; &gt; table_name.tsv</span><br></pre></td></tr></table></figure>
+
+<p><strong>如果想将备份数据导入的话，可以这么做：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cat table_name.csv | clickhouse-client --query=&quot;INSERT INTO table_name FORMAT TSV&quot;</span><br></pre></td></tr></table></figure>
+
+<p><strong>上述这种 dump 形式的优势在于，可以利用 SELECT 查询并筛选数据，然后按需备份。如果是备份整个表的数据，也可以直接复制它的整个目录文件。</strong></p>
+<h4 id="通过快照表备份"><a href="#通过快照表备份" class="headerlink" title="通过快照表备份"></a>通过快照表备份</h4><p><strong>快照表实质上就是普通的数据表，它通常按照业务规定的备份频率创建，例如按天或者按周创建。所以首先需要建立一张与原表结构相同的数据表，然后再使用 INSERT INTO SELECT句式，点对点地将数据从原表写人备份表。假设数据表 table_name 需要按日进行备份，现在为它创建当天的备份表：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">CREATE TABLE table_name_bak AS table_name</span><br></pre></td></tr></table></figure>
+
+<p><strong>有了备份表之后就可以点对点地备份数据了。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">INSERT INTO table_name_bak SELECT * FROM table_name</span><br></pre></td></tr></table></figure>
+
+<p><strong>如果考虑到容灾问题，也可以将备份表放在不同的 ClickHouse 节点上，此时需要将 SQL 语句改成远程查询的形式：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">INSERT INTO table_name_bak SELECT * FROM remote(&#x27;xx.xx.xx.xx:9000&#x27;, &#x27;default&#x27;, &#x27;table_name&#x27;, &#x27;default&#x27;)</span><br></pre></td></tr></table></figure>
+
+<h4 id="按分区备份"><a href="#按分区备份" class="headerlink" title="按分区备份"></a>按分区备份</h4><p><strong>基于数据分区的备份，ClickHouse 目前提供了 FREEZE 和 FETCH 两种方式，现在分别介绍它们的使用方法。</strong></p>
+<p><strong>使用 FREEZE 备份</strong></p>
+<p><strong>FREEZE 的完整语法如下所示：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ALTER TABLE table_name FREEZE PARTITION partition_expr</span><br></pre></td></tr></table></figure>
+
+<p><strong>分区在被备份之后，会被统一保存到 ClickHouse 根路径 &#x2F;shadow&#x2F;N 子目录下。其中 N 是一个自增长的整数，它的含义是备份的次数（FREEZE 执行过多少次），具体次数由 shadow 子目录下的 increment.txt 文件负责记录。而分区备份实质上是对原始目录文件进行硬链接操作，所以并不会导致额外的存储空间。整个备份的目录会一直向上追溯至 data 根路径的整个链路：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182818378-543092889.png" alt="img"></p>
+<p><strong>上面对 partition_test_v1 表的 202008 分区进行了备份，然后我们进入 shadow 子目录，便可看到之前备份的分区目录。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182826343-1704242937.png" alt="img"></p>
+<p><strong>如果想还原分区，则需要借助于 ATTACH 装载分区的方式实现，我们需要先将 shadow 子目录下的分区文件复制到相应数据表的 detached 目录下，然后再使用 ATTACH 语句装载。</strong></p>
+<p><strong>使用 FETCH 备份</strong></p>
+<p><strong>FETCH 只支持 ReplicatedMergeTree 系列的表引擎，其完整语法如下所示：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ALTER TABLE table_name FETCH PARTITION partition_id FROM zk_path</span><br></pre></td></tr></table></figure>
+
+<p><strong>其工作原理与 ReplicatedMergeTree 同步数据的原理类似，FETCH 通过指定的 zk_path 找到 ReplicatedMergeTree 的所有副本实例，然后从中选择一个最合适的副本，并下载相应的分区数据。例如执行如下语句：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ALTER TABLE test_fetch FETCH PARTITION 202009 FROM &#x27;/clickhouse/tables/02/test_fetch&#x27;</span><br></pre></td></tr></table></figure>
+
+<p><strong>表示将 test_fetch 的 201909 分区下载到本地，并保存到对应数据表的 detached 目录下，目录如下所示：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">data/default/test_fetch/detached/202009_0_0_0</span><br></pre></td></tr></table></figure>
+
+<p><strong>与 FREEZE 一样，对于备份分区的还原操作，也需要借助 ATTACH 装载分区来实现。 另外 FREEZE 和 FETCH 虽然都能实现对分区文件的备份，但是它们并不会备份数据表的元数据。所以说如果想做到万无一失的备份，还需要对数据表的元数据进行备份，它们是 &#x2F;data&#x2F;metadata 目录下的 [table].sql 文件，目前这些元数据需要用户通过复制的形式单独备份。</strong></p>
+<h2 id="服务监控"><a href="#服务监控" class="headerlink" title="服务监控"></a>服务监控</h2><p><strong>基于原生功能对 ClickHouse 进行监控，可以从两方面入手：系统表和查询日志，接下来分别介绍它们的使用方法。</strong></p>
+<h3 id="系统表"><a href="#系统表" class="headerlink" title="系统表"></a>系统表</h3><p><strong>在众多的 SYSTEM 系统表中，主要由以下三张表支撑了对 ClickHouse 运行指标的查询，它们分别是 metrics、events 和 asynchronous_metrics。</strong></p>
+<h4 id="1）metrics"><a href="#1）metrics" class="headerlink" title="1）metrics"></a>1）metrics</h4><p><strong>metrics 表用于统计 ClickHouse 服务在运行时，当前正在执行的高层次的概要信息，包括正在执行的查询总次数、正在发生合并的操作总次数等。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182838146-1057679332.png" alt="img"></p>
+<h4 id="events"><a href="#events" class="headerlink" title="events"></a>events</h4><p><strong>events 表用于统计 ClickHouse 服务在运行过程中，已经执行过的高层次的累积概要信息，包括总的查询次数、总的 SELECT 查询次数等。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182846652-1175367593.png" alt="img"></p>
+<h4 id="asynchronous-metrics"><a href="#asynchronous-metrics" class="headerlink" title="asynchronous_metrics"></a>asynchronous_metrics</h4><p><strong>asynchronous_metrics 表用于统计 ClickHouse 服务在运行过程中，当前后台正在异步运行的高层次的概要信息，包括当前分配的内存、执行队列中的任务数量等。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/1229382-20211008182853513-131246570.png" alt="img"></p>
+<h3 id="查询日志"><a href="#查询日志" class="headerlink" title="查询日志"></a>查询日志</h3><p><strong>查询日志目前主要有 6 种类型，它们分别从不同角度记录了 ClickHouse 的操作行为。所有查询日志在默认配置下都是关闭状态，需要在 config.xml 配置中进行更改，接下来分别介绍它们的开启方法。在配置被开启之后，ClickHouse 会为每种类型的查询日志自动生成相应的系统表以供查询。</strong></p>
+<h4 id="1-query-log"><a href="#1-query-log" class="headerlink" title="1. query_log"></a>1. query_log</h4><p><strong>query_log 是最常用的查询日志，它记录了 ClickHouse 服务中所有已经执行的查询记录，它的全局定义方式如下所示：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">query_log</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">database</span>&gt;</span>system<span class="tag">&lt;/<span class="name">database</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">table</span>&gt;</span>query_log<span class="tag">&lt;/<span class="name">table</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">partition_by</span>&gt;</span>toYYYYMM(event_date)<span class="tag">&lt;/<span class="name">partition_by</span>&gt;</span></span><br><span class="line">    <span class="comment">&lt;!-- 刷新周期 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">flush_interval_milliseconds</span>&gt;</span>7500<span class="tag">&lt;/<span class="name">flush_interval_milliseconds</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">query_log</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>如果只希望具有某些角色用户才能开启 query_log，那么可以在 users.xml 的用户 profile 中增加一个标签：1。</strong></p>
+<p><strong>query_log 开启后，即可通过相应的系统表对记录进行查询。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT * FROM system.query_log</span><br></pre></td></tr></table></figure>
+
+<p><strong>返回的日志信息十分完善，涵盖了查询语句、执行时间、返回的数据量和执行用户等。</strong></p>
+<h4 id="2-query-thread-log"><a href="#2-query-thread-log" class="headerlink" title="2. query_thread_log"></a>2. query_thread_log</h4><p><strong>query_thread_log 记录了所有线程的执行查询的信息，它的全局定义方式如下所示：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">query_thread_log</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">database</span>&gt;</span>system<span class="tag">&lt;/<span class="name">database</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">table</span>&gt;</span>query_thread_log<span class="tag">&lt;/<span class="name">table</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">partition_by</span>&gt;</span>toYYYYMM(event_date)<span class="tag">&lt;/<span class="name">partition_by</span>&gt;</span></span><br><span class="line">    <span class="comment">&lt;!-- 刷新周期 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">flush_interval_milliseconds</span>&gt;</span>7500<span class="tag">&lt;/<span class="name">flush_interval_milliseconds</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">query_thread_log</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>如果只希望具有某些角色用户才能开启 query_log，那么可以在 users.xml 的用户 profile 中增加一个标签：1。</strong></p>
+<p><strong>log_query_thread 开启后，即可通过相应的系统表对记录进行查询。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT * FROM system.log_query_thread</span><br></pre></td></tr></table></figure>
+
+<p><strong>返回的日志信息十分完善，涵盖了线程名称、查询语句、执行时间、和内存使用量等。</strong></p>
+<h4 id="3-part-log"><a href="#3-part-log" class="headerlink" title="3. part_log"></a>3. part_log</h4><p><strong>part_log 记录了 MergeTree 系列表引擎的分区操作日志，其全局定义方式如下：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">part_log</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">database</span>&gt;</span>system<span class="tag">&lt;/<span class="name">database</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">table</span>&gt;</span>part_log<span class="tag">&lt;/<span class="name">table</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">flush_interval_milliseconds</span>&gt;</span>7500<span class="tag">&lt;/<span class="name">flush_interval_milliseconds</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">part_log</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>part_log 开启后，即可通过相应的系统表对记录进行查询。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT * FROM system.part_log</span><br></pre></td></tr></table></figure>
+
+<p><strong>返回的日志信息十分完善，涵盖了操纵类型、表名称、分区信息和执行时间等。</strong></p>
+<h4 id="4-text-log"><a href="#4-text-log" class="headerlink" title="4. text_log"></a>4. text_log</h4><p><strong>text_log 日志记录了 ClickHouse 运行过程中产生的一系列打印日志，包括 INFO、DEBUG 和 TRACE，它的全局定义方式如下：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">text_log</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">database</span>&gt;</span>system<span class="tag">&lt;/<span class="name">database</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">table</span>&gt;</span>text_log<span class="tag">&lt;/<span class="name">table</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">flush_interval_milliseconds</span>&gt;</span>7500<span class="tag">&lt;/<span class="name">flush_interval_milliseconds</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">text_log</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>text_log 开启后，即可通过相应的系统表对记录进行查询。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT * FROM system.text_log</span><br></pre></td></tr></table></figure>
+
+<p><strong>返回的日志信息十分完善，涵盖了线程名称、日志对象、日志信息和执行时间等等。</strong></p>
+<h4 id="5-metric-log"><a href="#5-metric-log" class="headerlink" title="5. metric_log"></a>5. metric_log</h4><p><strong>metric_log 日志用于将 system.metrics 和 system.events 中的数据汇聚到一起，它的全局定义方式如下所示：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">metric_log</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">database</span>&gt;</span>system<span class="tag">&lt;/<span class="name">database</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">table</span>&gt;</span>metric_log<span class="tag">&lt;/<span class="name">table</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">flush_interval_milliseconds</span>&gt;</span>7500<span class="tag">&lt;/<span class="name">flush_interval_milliseconds</span>&gt;</span></span><br><span class="line">    <span class="comment">&lt;!-- 收集 metrics 和 event 的时间 --&gt;</span></span><br><span class="line">    <span class="tag">&lt;<span class="name">collect_interval_milliseconds</span>&gt;</span>1000<span class="tag">&lt;/<span class="name">collect_interval_milliseconds</span>&gt;</span>    </span><br><span class="line"><span class="tag">&lt;/<span class="name">metric_log</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>metric_log 开启后，即可通过相应的系统表对记录进行查询。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">SELECT * FROM system.metric_log</span><br></pre></td></tr></table></figure>
+
+<p><strong>以上就是几种查询日志，当然，除了这些自身的查询日志之外，ClickHouse 还能够与众多的第三方系统集成，比如 Prometheus。当然监控系统又是一个比较大的话题了，这里就不再展开了，有兴趣可以去调研一下。</strong></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="https://hesay.cn">wenwen</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="https://hesay.cn/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/">https://hesay.cn/2023/04/11/ClickHouse%20%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4(%E5%8D%81%E4%B9%9D)/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="https://hesay.cn" target="_blank">热心市民温温</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/ClickHouse/">ClickHouse</a></div><div class="post_share"><div class="social-share" data-image="/img/favicon.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2023/04/11/ClickHouse%20%E7%9A%84%E6%89%A7%E8%A1%8C%E8%AE%A1%E5%88%92%E4%BB%A5%E5%8F%8A%E4%BC%98%E5%8C%96%E7%AD%96%E7%95%A5(%E5%8D%81%E5%85%AD)/" title="ClickHouse 的执行计划以及优化策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">ClickHouse 的执行计划以及优化策略</div></div></a></div><div class="next-post pull-right"><a href="/2023/04/11/ClickHouse%20%E7%9A%84%E7%B3%BB%E7%BB%9F%E8%A1%A8(%E5%8D%81%E5%85%AB)/" title="ClickHouse 的系统表"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">ClickHouse 的系统表</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><div><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E5%85%B6%E5%AE%83%E5%B8%B8%E8%A7%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E(%E5%85%AB)/" title="ClickHouse 中其它常见的表引擎"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 中其它常见的表引擎</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/" title="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E7%9A%84%E6%95%B0%E6%8D%AE%E6%9F%A5%E8%AF%A2%E4%BB%A5%E5%8F%8A%E5%90%84%E7%A7%8D%E5%AD%90%E5%8F%A5(%E4%B9%9D)/" title="ClickHouse 中的数据查询以及各种子句"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 中的数据查询以及各种子句</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E4%B9%8B%20MergeTree%20%E5%AE%B6%E6%97%8F%E4%B8%AD%E7%9A%84%E5%85%B6%E5%AE%83%E8%A1%A8%E5%BC%95%E6%93%8E(%E4%B8%83)/" title="ClickHouse 之 MergeTree 家族中的其它表引擎"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 之 MergeTree 家族中的其它表引擎</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E5%85%B6%E5%AE%83%E7%9A%84%E4%B8%80%E4%BA%9B%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0%20(%E5%8D%81%E4%BA%94)/" title="ClickHouse 其它的一些操作函数"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 其它的一些操作函数</div></div></a></div><div><a href="/2023/03/01/ClickHouse%20%E6%95%B0%E6%8D%AE%E8%A1%A8%E7%9A%84%E5%A2%9E%E5%88%A0%E6%94%B9(%E4%BA%94)/" title="ClickHouse 数据表的增删改"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-03-01</div><div class="title">ClickHouse 数据表的增删改</div></div></a></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src="/img/favicon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info__name">wenwen</div><div class="author-info__description"></div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/wenlinshan"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">码海无涯。。。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#ClickHouse-%E7%9A%84%E7%AE%A1%E7%90%86%E4%B8%8E%E8%BF%90%E7%BB%B4"><span class="toc-number">1.</span> <span class="toc-text">ClickHouse 的管理与运维</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A5%94%E5%AD%90"><span class="toc-number">1.1.</span> <span class="toc-text">楔子</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%94%A8%E6%88%B7%E9%85%8D%E7%BD%AE"><span class="toc-number">1.2.</span> <span class="toc-text">用户配置</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%94%A8%E6%88%B7%E7%9A%84%E8%A7%92%E8%89%B2%E9%85%8D%E7%BD%AE%EF%BC%88profile%EF%BC%89"><span class="toc-number">1.2.1.</span> <span class="toc-text">用户的角色配置（profile）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%85%8D%E7%BD%AE%E7%BA%A6%E6%9D%9F"><span class="toc-number">1.2.2.</span> <span class="toc-text">配置约束</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%94%A8%E6%88%B7"><span class="toc-number">1.2.3.</span> <span class="toc-text">用户</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9D%83%E9%99%90%E7%AE%A1%E7%90%86"><span class="toc-number">1.3.</span> <span class="toc-text">权限管理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%AE%BF%E9%97%AE%E6%9D%83%E9%99%90"><span class="toc-number">1.3.1.</span> <span class="toc-text">访问权限</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9F%A5%E8%AF%A2%E6%9D%83%E9%99%90"><span class="toc-number">1.3.2.</span> <span class="toc-text">查询权限</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E8%A1%8C%E7%BA%A7%E6%9D%83%E9%99%90"><span class="toc-number">1.3.3.</span> <span class="toc-text">数据行级权限</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%86%94%E6%96%AD%E6%9C%BA%E5%88%B6"><span class="toc-number">1.4.</span> <span class="toc-text">熔断机制</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A0%B9%E6%8D%AE%E6%97%B6%E9%97%B4%E5%91%A8%E6%9C%9F%E7%9A%84%E7%B4%AF%E7%A7%AF%E7%94%A8%E9%87%8F%E7%86%94%E6%96%AD"><span class="toc-number">1.4.0.1.</span> <span class="toc-text">根据时间周期的累积用量熔断</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%A0%B9%E6%8D%AE%E5%8D%95%E6%AC%A1%E6%9F%A5%E8%AF%A2%E7%9A%84%E7%94%A8%E9%87%8F%E7%86%94%E6%96%AD"><span class="toc-number">1.4.0.2.</span> <span class="toc-text">根据单次查询的用量熔断</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E5%A4%87%E4%BB%BD"><span class="toc-number">1.5.</span> <span class="toc-text">数据备份</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%AF%BC%E5%87%BA%E6%96%87%E4%BB%B6%E5%A4%87%E4%BB%BD"><span class="toc-number">1.5.0.1.</span> <span class="toc-text">导出文件备份</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E9%80%9A%E8%BF%87%E5%BF%AB%E7%85%A7%E8%A1%A8%E5%A4%87%E4%BB%BD"><span class="toc-number">1.5.0.2.</span> <span class="toc-text">通过快照表备份</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%8C%89%E5%88%86%E5%8C%BA%E5%A4%87%E4%BB%BD"><span class="toc-number">1.5.0.3.</span> <span class="toc-text">按分区备份</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%9C%8D%E5%8A%A1%E7%9B%91%E6%8E%A7"><span class="toc-number">1.6.</span> <span class="toc-text">服务监控</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%B3%BB%E7%BB%9F%E8%A1%A8"><span class="toc-number">1.6.1.</span> <span class="toc-text">系统表</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1%EF%BC%89metrics"><span class="toc-number">1.6.1.1.</span> <span class="toc-text">1）metrics</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#events"><span class="toc-number">1.6.1.2.</span> <span class="toc-text">events</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#asynchronous-metrics"><span class="toc-number">1.6.1.3.</span> <span class="toc-text">asynchronous_metrics</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9F%A5%E8%AF%A2%E6%97%A5%E5%BF%97"><span class="toc-number">1.6.2.</span> <span class="toc-text">查询日志</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-query-log"><span class="toc-number">1.6.2.1.</span> <span class="toc-text">1. query_log</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-query-thread-log"><span class="toc-number">1.6.2.2.</span> <span class="toc-text">2. query_thread_log</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-part-log"><span class="toc-number">1.6.2.3.</span> <span class="toc-text">3. part_log</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-text-log"><span class="toc-number">1.6.2.4.</span> <span class="toc-text">4. text_log</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#5-metric-log"><span class="toc-number">1.6.2.5.</span> <span class="toc-text">5. metric_log</span></a></li></ol></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E5%85%B6%E5%AE%83%E5%B8%B8%E8%A7%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E(%E5%85%AB)/" title="ClickHouse 中其它常见的表引擎">ClickHouse 中其它常见的表引擎</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/" title="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析">ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E7%9A%84%E6%95%B0%E6%8D%AE%E6%9F%A5%E8%AF%A2%E4%BB%A5%E5%8F%8A%E5%90%84%E7%A7%8D%E5%AD%90%E5%8F%A5(%E4%B9%9D)/" title="ClickHouse 中的数据查询以及各种子句">ClickHouse 中的数据查询以及各种子句</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B9%8B%20MergeTree%20%E5%AE%B6%E6%97%8F%E4%B8%AD%E7%9A%84%E5%85%B6%E5%AE%83%E8%A1%A8%E5%BC%95%E6%93%8E(%E4%B8%83)/" title="ClickHouse 之 MergeTree 家族中的其它表引擎">ClickHouse 之 MergeTree 家族中的其它表引擎</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E5%85%B6%E5%AE%83%E7%9A%84%E4%B8%80%E4%BA%9B%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0%20(%E5%8D%81%E4%BA%94)/" title="ClickHouse 其它的一些操作函数">ClickHouse 其它的一些操作函数</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2020 - 2023 By wenwen</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.umd.min.js"></script><div class="js-pjax"></div><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-nest.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="is-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据库加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div><hr/><div id="local-search-results"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></body></html>

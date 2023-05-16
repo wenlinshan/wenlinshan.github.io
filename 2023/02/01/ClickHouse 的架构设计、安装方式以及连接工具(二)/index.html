@@ -1,0 +1,349 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"><title>ClickHouse 的架构设计 | 热心市民温温</title><meta name="author" content="wenwen"><meta name="copyright" content="wenwen"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="ClickHouse 的架构设计、安装方式以及连接工具​																	本文来源： (https:&#x2F;&#x2F;www.cnblogs.com&#x2F;traditional&#x2F;p&#x2F;15218595.html)  Column 与 FieldColumn 和 Field 是 ClickHouse 中最基础的映射单元，作为一款百分百的列式存储数据库，ClickHouse 按列存储数据，内存中的一个列就">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ClickHouse 的架构设计">
+<meta property="og:url" content="https://hesay.cn/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/index.html">
+<meta property="og:site_name" content="热心市民温温">
+<meta property="og:description" content="ClickHouse 的架构设计、安装方式以及连接工具​																	本文来源： (https:&#x2F;&#x2F;www.cnblogs.com&#x2F;traditional&#x2F;p&#x2F;15218595.html)  Column 与 FieldColumn 和 Field 是 ClickHouse 中最基础的映射单元，作为一款百分百的列式存储数据库，ClickHouse 按列存储数据，内存中的一个列就">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://hesay.cn/img/favicon.png">
+<meta property="article:published_time" content="2023-02-01T08:04:31.000Z">
+<meta property="article:modified_time" content="2023-02-13T09:06:57.974Z">
+<meta property="article:author" content="wenwen">
+<meta property="article:tag" content="ClickHouse">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://hesay.cn/img/favicon.png"><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://hesay.cn/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  source: {
+    justifiedGallery: {
+      js: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.js',
+      css: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.css'
+    }
+  },
+  isPhotoFigcaption: false,
+  islazyload: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  }
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'ClickHouse 的架构设计',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2023-02-13 17:06:57'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(win=>{
+    win.saveToLocal = {
+      set: function setWithExpiry(key, value, ttl) {
+        if (ttl === 0) return
+        const now = new Date()
+        const expiryDay = ttl * 86400000
+        const item = {
+          value: value,
+          expiry: now.getTime() + expiryDay,
+        }
+        localStorage.setItem(key, JSON.stringify(item))
+      },
+
+      get: function getWithExpiry(key) {
+        const itemStr = localStorage.getItem(key)
+
+        if (!itemStr) {
+          return undefined
+        }
+        const item = JSON.parse(itemStr)
+        const now = new Date()
+
+        if (now.getTime() > item.expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return item.value
+      }
+    }
+  
+    win.getScript = url => new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = url
+      script.async = true
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    })
+  
+    win.getCSS = (url,id = false) => new Promise((resolve, reject) => {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = url
+      if (id) link.id = id
+      link.onerror = reject
+      link.onload = link.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        link.onload = link.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(link)
+    })
+  
+      win.activateDarkMode = function () {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = function () {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+          if (t === 'dark') activateDarkMode()
+          else if (t === 'light') activateLightMode()
+        
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+    const detectApple = () => {
+      if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+    })(window)</script><meta name="generator" content="Hexo 6.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src="/img/favicon.png" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fa fa-graduation-cap"></i><span> 博文</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></li></ul></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-list"></i><span> 生活</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/shuoshuo/"><i class="fa-fw fa fa-comments-o"></i><span> 分享</span></a></li><li><a class="site-page child" href="/photos/"><i class="fa-fw fa fa-camera-retro"></i><span> 相册</span></a></li><li><a class="site-page child" href="/music/"><i class="fa-fw fa fa-music"></i><span> 音乐</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> 影视</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/links/"><i class="fa-fw fa fa-link"></i><span> 友链</span></a></div><div class="menus_item"><a class="site-page" href="/comment/"><i class="fa-fw fa fa-paper-plane"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于笔者</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="not-top-img" id="page-header"><nav id="nav"><span id="blog-info"><a href="/" title="热心市民温温"><span class="site-name">热心市民温温</span></a></span><div id="menus"><div id="search-button"><a class="site-page social-icon search" href="javascript:void(0);"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fa fa-graduation-cap"></i><span> 博文</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></li></ul></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-list"></i><span> 生活</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/shuoshuo/"><i class="fa-fw fa fa-comments-o"></i><span> 分享</span></a></li><li><a class="site-page child" href="/photos/"><i class="fa-fw fa fa-camera-retro"></i><span> 相册</span></a></li><li><a class="site-page child" href="/music/"><i class="fa-fw fa fa-music"></i><span> 音乐</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> 影视</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/links/"><i class="fa-fw fa fa-link"></i><span> 友链</span></a></div><div class="menus_item"><a class="site-page" href="/comment/"><i class="fa-fw fa fa-paper-plane"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于笔者</span></a></div></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);"><i class="fas fa-bars fa-fw"></i></a></div></div></nav></header><main class="layout" id="content-inner"><div id="post"><div id="post-info"><h1 class="post-title">ClickHouse 的架构设计</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2023-02-01T08:04:31.000Z" title="发表于 2023-02-01 16:04:31">2023-02-01</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2023-02-13T09:06:57.974Z" title="更新于 2023-02-13 17:06:57">2023-02-13</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ClickHouse/">ClickHouse</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="ClickHouse 的架构设计"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div><article class="post-content" id="article-container"><h1 id="ClickHouse-的架构设计、安装方式以及连接工具"><a href="#ClickHouse-的架构设计、安装方式以及连接工具" class="headerlink" title="ClickHouse 的架构设计、安装方式以及连接工具"></a>ClickHouse 的架构设计、安装方式以及连接工具</h1><p>​																	本文来源： (<a target="_blank" rel="noopener" href="https://www.cnblogs.com/traditional/p/15218595.html">https://www.cnblogs.com/traditional/p/15218595.html</a>) </p>
+<h3 id="Column-与-Field"><a href="#Column-与-Field" class="headerlink" title="Column 与 Field"></a>Column 与 Field</h3><p><strong>Column 和 Field 是 ClickHouse 中最基础的映射单元，作为一款百分百的列式存储数据库，ClickHouse 按列存储数据，内存中的一个列就用一个 Column 对象表示。Column 对象分为接口和实现两个部分，在 IColumn 接口对象中，定义了对数据进行各种关系运算的方法，例如插入数据的 insertRangeFrom 方法和 insertFrom 方法，用于分页的 cut，以及用于数据过滤的 filter 方法等等。而这些方法的具体实现对象则根据数据类型的不同，由不同的对象实现，例如：ColumnString、ColumnArray 和 ColumnTuple 等等。在大部分场景中，ClickHouse 都会以整列的方式操作数据，但凡事也有例外，如果需要操作单个具体的值（也就是单列中的一行数据），则需要使用 Field 对象。Field 对象代表一个单值，与 Column 对象的泛化设计思路不同，Field 对象使用了聚合的设计模式。在 Field 对象内部聚合 Null、UInt64、String 和 Array 等 13 种数据类型及相应的处理逻辑，说白了就是这些值的类型虽然不同，但它们都是 Field 对象，因为这些类型的数据的处理逻辑都在 Field 对象里面。</strong></p>
+<blockquote>
+<p><strong>Column 对象是数据表中的一列，Field 对象相当于一个单元格。</strong></p>
+</blockquote>
+<h3 id="DataType"><a href="#DataType" class="headerlink" title="DataType"></a>DataType</h3><p><strong>数据的序列化和反序列化工作由 DataType 负责，IDataType 接口定义了许多正反序列化的方法，它们成对出现，例如 serializeBinary 和 deserializeBinary、serializeTextJSON 和 deserializeTextJSON 等等，涵盖了常用的二进制、文本、JSON、XML、CSV 和 Protobuf 等多种格式类型。IDataType 也使用了泛化的设计模式，具体方法的实现逻辑由对应数据类型的实例对象来承载，例如 DataTypeString、DataTypeArray 以及 DataTypeTuple 等等。</strong></p>
+<blockquote>
+<p><strong>接口内部定义相应的方法，具体的数据类负责实现。如果某个类实现了接口内部定义的所有方法，那么这个类就实现了这个接口，其实例对象就可以赋值给接口，通过接口来调用内部的方法。当然调用的方法必须是接口内部已经声明的，如果除了接口内部定义的方法之外，该类还定义了其它的方法，那么这些其它的方法就不能通过接口调用了。</strong></p>
+<p><strong>那么接口设计有什么好处呢？首先最直观的一个好处就是实现了多态，因为不管是什么类，只要它实现了接口定义的方法，那么其实例对象就可以赋值给接口，即：一个接口，多种实现。</strong></p>
+</blockquote>
+<p><strong>另外 DataType 虽然负责序列化相关工作，但它并不直接负责数据的读取，而是从 Column 对象或 Field 对象中读取。在 DataType 的实现类中，聚合了相应数据类型的 Column 对象和 Field 对象。例如 DataTypeString 会引用字符串类型的 ColumnString，而 DataTypeArray 则会引用数组类型的 ColumnArray，以此类推。</strong></p>
+<h3 id="Block-和-Block流"><a href="#Block-和-Block流" class="headerlink" title="Block 和 Block流"></a>Block 和 Block流</h3><p><strong>ClickHouse 内部的数据操作是面向 Block 对象进行的，并且采用了流的形式，虽然 Column 对象和 Field 对象组成了数据的基本映射单元，但对应到实际操作，它们还少了一些必要的信息，比如数据的类型和列的名称。于是 ClickHouse 设计了 Block 对象，Block 对象可以看成是数据表的子集，Block 对象的本质是由数据对象、数据类型和列名称组成的三元组，即 Column、DataType、列名称字符串。Column 提供了数据的读取能力，而 DataType 知道如何正反序列化，所以 Block 对象在这些对象的基础上实现了进一步的抽象和封装，从而简化了整个使用的过程，仅通过 Block 对象就能完成一系列的数据操作。只不过在具体的实现过程中，Block 并没有直接聚合 Column 和 DataType 对象，而是通过 ColumnWithAndName 对象进行间接引用。</strong></p>
+<p><strong>有了 Block 对象的这一层封装之后，对 Block 流的设计就是水到渠成的事情了，流操作有两组顶层接口：IBlockInputStream 负责数据的读取和关键运算，IBlockOutputStream 负责将数据输出到下一环节。Block 流也是用了泛化的设计模式，对数据的各种操作都会转换成其中一种流的实现。所以 IBlockInputStream 也是一个接口，内部定义了读取数据的若干个 read 虚方法，而具体的实现逻辑则交给它的实现类来填充，IBlockOutputStream 同理。</strong></p>
+<p><strong>总共有 60 多个类实现了 IBlockInputStream 接口，它们覆盖了 ClickHouse 数据摄取的方方面面。这些实现类大致可以分为三类：第一类用于处理数据定义的 DDL 操作，例如 DDLQueryStatusInputStream 等；第二类用于处理数据关系运算的相关操作，例如 LimitBlockInputStream、JoinBlockInputStream、AggregatingBlockInputStream等；第三类则是与引擎呼应，每一种引擎都拥有与之对应的 BlockInputStream 实现，例如 MergeTreeBaseSelectBlockInputStream（MergeTree 引擎）、TinyLogBlockInputStream（TinyLog 引擎）以及 KafkaBlockInputStream（Kafka 引擎）等。</strong></p>
+<p><strong>IBlockOutputStream 的设计也与 IBlockInputStream 如出一辙，IBlockOutputStream 接口同样定义了若干写入数据的 write 虚方法。但它的实现类比起 IBlockInputStream 要少很多，一共只有 20 多种，这些实现类基本用于引擎的相关处理，负责将数据写入下一环节或者最终目的地，例如：MergeTreeBlockOutputStream、TinyLogBlockOutputStream 以及 StorageFileBlockOutputStream 等。</strong></p>
+<h3 id="Table"><a href="#Table" class="headerlink" title="Table"></a>Table</h3><p><strong>在数据表的底层设计中并没有所谓的 Table 对象，它是直接使用 IStroge 接口指代数据表，表的引擎是 ClickHouse 的一个显著特征，不同的表的引擎由不同的子类实现。例如：IStorageSystemOneBlock（系统表）、StorageMergeTree（合并树引擎）和 StorageTinyLog（日志表引擎）等。IStorage 接口定义了 DDL（如 ALTER、RENAME、OPTIMIZE 和 DROP 等）、read 和 write 方法，它们分别负责数据的定义、查询与写入。在数据查询时，IStorage 负责根据 AST 查询语句的指示要求，返回指定列的原始数据。后续对数据的进一步加工、计算和过滤则会统一交由 Interpreter 解释器对象处理。对 Table 发起的一次操作通常都会经历这样的过程，接收 AST 查询语句、根据 AST 返回指定列的数据，之后再将数据交给 Interpreter 做进一步处理。</strong></p>
+<h3 id="Parser-和-Interpreter"><a href="#Parser-和-Interpreter" class="headerlink" title="Parser 和 Interpreter"></a>Parser 和 Interpreter</h3><p><strong>Parser 和 Interpreter 是非常重要的两组接口：Parser 分析器负责创建 AST 对象；而 Interpreter 解释器对象则负责解释 AST，并进一步创建查询的执行管道，它们与 IStorage 一起，串联起了整个数据查询的过程。</strong></p>
+<p><strong>Parser 分析器可以将一条 SQL 语句以递归下降的方法解析成 AST（抽象语法树），不同的 SQL 语句会交给不同的 Parser 实现类来解析。例如，有负责解析 DDL 查询语句的 ParserRenameQuery、ParserDropQuery 和 ParserAlterQuery 解析器，还有负责解析 INSERT 语句的 ParserInsertQuery 解析器，还有负责 SELECT 语句的 ParserSelectQuery 等等。所以尽管 SQL 语句最终都会被解析成 AST，但不同的 SQL 语句会交给不同的 Parser 实现类进行解析</strong></p>
+<p><strong>Interpreter 解释器的作用域就像 Service 服务器一样，起到串联整个查询过程的作用，它会根据解释器的类型，聚合它所需要的资源。首先它会解析 AST 对象，然后执行 “业务逻辑”（例如分支判断、设置参数、调用接口等）；最终返回 IBlock 对象，以线程的形式建立起一个查询执行管道。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20201012235617320-1692152376.png" alt="img"></p>
+<h3 id="Functions-与-Aggregate-Functions"><a href="#Functions-与-Aggregate-Functions" class="headerlink" title="Functions 与 Aggregate Functions"></a>Functions 与 Aggregate Functions</h3><p><strong>ClickHouse 主要提供两类函数：普通函数和聚合函数，普通函数由 IFunction 接口定义，拥有数十种函数实现，例如 FunctionFormatDataTime、FunctionSubstring 等。除了一些常见的函数（诸如四则运算、日期转换）之外，也不乏一些非常使用的函数，例如网址提取函数、IP 地址脱敏函数等。普通函数是没有状态的，函数效果作用于每行数据之上。当然，在函数具体执行的过程中，并不会一行一行的运算，而是采用向量化执行的方式直接作用于一整列数据。</strong></p>
+<p><strong>聚合函数由 IAggregateFunction 接口定义，相比无状态的普通函数，聚合函数是有状态的。以 COUNT 聚合函数为例，其 AggregateFunctionCount 的状态使用整型UInt64记录。聚合函数的状态支持序列化和反序列化，所以能够在分布式节点直接进行传输，以实现增量计算。</strong></p>
+<h3 id="Cluster-与-Replication"><a href="#Cluster-与-Replication" class="headerlink" title="Cluster 与 Replication"></a>Cluster 与 Replication</h3><p><strong>ClickHouse 的集群由分片（Shard）组成，而每个分片又通过副本（Replica）组成，这种分层的概念，在一些流行的分布式系统中非常普遍。例如，在 Elasticsearch 中，一个索引由分片和副本组成，副本可以看做是一种特殊的分片，如果一个索引由 5 个分片组成，副本的基数是 1，那么这个索引一共会拥有 10 个分片（每 1 个分片对应 1 个副本）。</strong></p>
+<p><strong>而如果你使用同样的方式来理解 ClickHouse 的分片，那么很可能会栽一个跟头，ClickHouse 的某些设计总是显得独树一帜，而集群与分片便是其中之一。这里有几个与众不同的特性：</strong></p>
+<ul>
+<li><code>1. ClickHouse 的一个节点只能有 1 个分片，也就是说如果要实现 1 分片、1 副本，则至少需要两个服务节点</code></li>
+<li><code>2. 分片只是一个逻辑概念，其物理承载还是要由副本来承担的</code></li>
+</ul>
+<p><strong>我们来看一下 ClickHouse 的集群配置，这里将会在后面详细说，目前先看看有个印象即可。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">ch_cluster</span>&gt;</span></span><br><span class="line">	<span class="tag">&lt;<span class="name">shard</span>&gt;</span></span><br><span class="line">    	<span class="tag">&lt;<span class="name">replica</span>&gt;</span></span><br><span class="line">        	<span class="tag">&lt;<span class="name">host</span>&gt;</span>47.94.174.89<span class="tag">&lt;/<span class="name">host</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">port</span>&gt;</span>9000<span class="tag">&lt;/<span class="name">port</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">replica</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">shard</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">ch_cluster</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>如果从字面含义上来理解的话，可以认为是自定义集群 ch_cluster 拥有一个 shard（分片）和一个replica（副本），且该副本由 47.94.174.89 服务节点承载。</strong></p>
+<p><strong>但是从本质上来理解的话，1 分片、1 副本的配置在 ClickHouse 中只有 1 个物理副本，所以它的正确语义应该是 1 分片、0 副本。分片更像是逻辑层的分组，在物理存储层面则统一使用副本来代表 “分片和副本”。所以如果想真正表示 1 分片、1 副本语义的配置，应该改为 1 个分片和 2 个副本，配置可以改为如下：</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">ch_cluster</span>&gt;</span></span><br><span class="line">	<span class="tag">&lt;<span class="name">shard</span>&gt;</span></span><br><span class="line">    	<span class="tag">&lt;<span class="name">replica</span>&gt;</span></span><br><span class="line">        	<span class="tag">&lt;<span class="name">host</span>&gt;</span>47.94.174.89<span class="tag">&lt;/<span class="name">host</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">port</span>&gt;</span>9000<span class="tag">&lt;/<span class="name">port</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">replica</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;<span class="name">replica</span>&gt;</span></span><br><span class="line">        	<span class="tag">&lt;<span class="name">host</span>&gt;</span>47.93.39.238<span class="tag">&lt;/<span class="name">host</span>&gt;</span></span><br><span class="line">            <span class="tag">&lt;<span class="name">port</span>&gt;</span>9000<span class="tag">&lt;/<span class="name">port</span>&gt;</span></span><br><span class="line">        <span class="tag">&lt;/<span class="name">replica</span>&gt;</span></span><br><span class="line">    <span class="tag">&lt;/<span class="name">shard</span>&gt;</span></span><br><span class="line"><span class="tag">&lt;/<span class="name">ch_cluster</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>以上就是 ClickHouse 的架构设计，这些内容感觉有点枯燥甚至不好理解，下面就来安装 ClickHouse，进入实际操作环节。</strong></p>
+<h2 id="ClickHouse-的安装以及连接工具"><a href="#ClickHouse-的安装以及连接工具" class="headerlink" title="ClickHouse 的安装以及连接工具"></a>ClickHouse 的安装以及连接工具</h2><p><strong>相较于 Hadoop 生态中的一些系统，ClickHouse 的安装显得尤为简单，因为它自成一体，在单节点的情况下不需要额外的依赖，集群的话后面会说。</strong></p>
+<p><strong>ClickHouse 支持运行在主流 64 位 CPU 架构的 Linux 操作系统上，可以通过源码编译、预编译压缩包、Docker 镜像和 RPM 等多种方法进行安装。这里我们着重介绍一下离线 RPM 的安装方法，因为它最常用。</strong></p>
+<p><strong>先介绍一下环境，我们使用的操作系统为 CentOS 7，是我在阿里云上的服务器，而 ClickHouse 我们选择 21.7.3.14 版本，一个非常新的版本。</strong></p>
+<p><strong>1. 下载 RPM 安装包</strong></p>
+<p><strong>用于安装的 RPM 包可以从仓库 <a target="_blank" rel="noopener" href="https://repo.yandex.ru/clickhouse/rpm/stable/x86_64/">https://repo.yandex.ru/clickhouse/rpm/stable/x86_64/</a> 中进行下载，里面包含了所有版本的 ClickHouse。</strong></p>
+<p><strong>我们需要下载以下四个安装包文件：</strong></p>
+<figure class="highlight powershell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">clickho<span class="built_in">use-client</span><span class="literal">-21</span>.<span class="number">7.3</span>.<span class="number">14</span><span class="literal">-2</span>.noarch.rpm</span><br><span class="line">clickho<span class="built_in">use-common</span><span class="literal">-static-21</span>.<span class="number">7.3</span>.<span class="number">14</span><span class="literal">-2</span>.x86_64.rpm</span><br><span class="line">clickho<span class="built_in">use-common</span><span class="literal">-static-dbg-21</span>.<span class="number">7.3</span>.<span class="number">14</span><span class="literal">-2</span>.x86_64.rpm</span><br><span class="line">clickho<span class="built_in">use-server</span><span class="literal">-21</span>.<span class="number">7.3</span>.<span class="number">14</span><span class="literal">-2</span>.noarch.rpm</span><br></pre></td></tr></table></figure>
+
+<p><strong>2. 关闭防火墙并检查环境依赖</strong></p>
+<p><strong>首先，考虑到后续的集群部署，通常建议关闭本机的防火墙，在 CentOS 7 中关闭防火墙的方法如下：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 关闭防火墙</span></span><br><span class="line">systemctl stop firewalld.service</span><br><span class="line"><span class="comment"># 禁用开机启动项</span></span><br><span class="line">systemctl <span class="built_in">disable</span> firewalld.service</span><br></pre></td></tr></table></figure>
+
+<p><strong>接着需要验证当前服务器的 CPU 是否支持 SSE 4.2 指令集，因为向量化执行需要用到这项特性：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">grep -q sse4_2 /proc/cpuinfo &amp;&amp; <span class="built_in">echo</span> <span class="string">&quot;支持 SSE 4.2 指令集&quot;</span> || <span class="built_in">echo</span> <span class="string">&quot;不支持 SSE 4.2 指令集&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173136749-2106854624.png" alt="img"></p>
+<p><strong>如果不支持 SSE 指令集，则不能使用上面下载的 RPM 安装包，而是需要使用源码编译的方式安装，当然现在的 CPU 基本上都是支持的。</strong></p>
+<p><strong>3. 安装 ClickHouse</strong></p>
+<p><strong>我们将上面下载地 RPM 包上传到服务器，然后进行安装。</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 使用通配符，会将当前目录下所有的 rpm 包全部依次安装，非常方便</span></span><br><span class="line"><span class="comment"># 因为我们是安装 ClickHouse，所以该目录除了 ClickHouse 的 rpm 包之外，最好不要有其它的 rpm 包</span></span><br><span class="line">rpm -ivh ./*.rpm</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意，在安装到 clickhouse-server 的时候会提示你设置密码：</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173147043-888452747.png" alt="img"></p>
+<p><strong>因为 ClickHouse 在安装的时候会有一个默认的 default 用户，这里会提示你给 default 设置密码，因为 ClickHouse 和 MySQL、PostgreSQL 等数据库一样，也具有用户管理权限。老版本默认没有密码，新版本会让你主动设置，这里我们就不设置了，直接回车就好，这样后续在连接的时候就不需要密码了。</strong></p>
+<p><strong>最后，如果想卸载 ClickHouse 也很简单，至于以下几步：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">yum remove clickhouse-client clickhouse-common-static clickhouse-common-static-dbg clickhouse-server -y</span><br><span class="line"><span class="built_in">rm</span> -rf /var/lib/clickhouse</span><br><span class="line"><span class="built_in">rm</span> -rf /etc/clickhouse-*</span><br><span class="line"><span class="built_in">rm</span> -rf /var/log/clickhouse-server</span><br></pre></td></tr></table></figure>
+
+<h3 id="目录结构"><a href="#目录结构" class="headerlink" title="目录结构"></a>目录结构</h3><p><strong>程序在安装的时候会自动构建整套目录结构，接下来分别说明它们的作用。</strong></p>
+<p><strong>1) 首先是核心目录部分</strong></p>
+<p><strong>&#x2F;etc&#x2F;clickhouse-server：服务端的配置文件目录, 包括全局配置 config.xml 和用户配置 users.xml 等。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173157010-600531378.png" alt="img"></p>
+<p><strong>&#x2F;var&#x2F;lib&#x2F;clickhouse：默认的数据存储目录（通常会修改默认存储路径，将数据保存到大容量磁盘挂载的路径），通过 config.xml 进行修改。</strong></p>
+<p><strong>&#x2F;var&#x2F;log&#x2F;clickhouse-server：默认保存日志的目录（通常会修改默认存储路径，将日志保存到大容量磁盘挂载的路径），通过 config.xml 进行修改。</strong></p>
+<p><strong>2) 接下来是配置文件部分</strong></p>
+<p><strong>&#x2F;etc&#x2F;security&#x2F;limits.d&#x2F;clickhouse.conf：文件句柄数量的配置，默认值如下所示：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[root@satori ~]<span class="comment"># cat /etc/security/limits.d/clickhouse.conf</span></span><br><span class="line">clickhouse	soft	nofile	262144</span><br><span class="line">clickhouse	hard	nofile	262144</span><br><span class="line">[root@satori ~]<span class="comment">#</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>该配置也可以通过 config.xml 中的 max_open_files 参数指定。</strong></p>
+<p><strong>&#x2F;etc&#x2F;cron.d&#x2F;clickhouse-server：cron 定时任务配置, 用于恢复因异常原因中断的 ClickHouse 服务进程, 其默认的配置如下所示：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[root@satori ~]<span class="comment"># cat /etc/cron.d/clickhouse-server</span></span><br><span class="line"><span class="comment">#*/10 * * * * root ((which service &gt; /dev/null 2&gt;&amp;1 &amp;&amp; (service clickhouse-server condstart ||:)) || /etc/init.d/clickhouse-server condstart) &gt; /dev/null 2&gt;&amp;1</span></span><br><span class="line">[root@satori ~]<span class="comment">#</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>可以看到默认情况，每隔 10 秒就会使用 condstart 尝试启动一次 ClickHouse 服务，如果 ClickHouse 服务正在运行，则跳过；如果没有运行，则启动。</strong></p>
+<p><strong>3) 最后是在 &#x2F;usr&#x2F;bin 目录下的启动文件</strong></p>
+<p><strong>ClickHouse 相关的启动文件都位于 &#x2F;usr&#x2F;bin 目录下。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173206870-757028996.png" alt="img"></p>
+<p><strong>可执行文件数量还是蛮多的，其中四个最常用。</strong></p>
+<ul>
+<li><code>clickhouse: 主程序的可执行文件</code></li>
+<li><code>clickhouse-client: 一个指向 ClickHouse 可执行文件的软连接, 供客户端连接使用</code></li>
+<li><code>clickhouse-server: 一个指向 ClickHouse 可执行文件的软连接, 供服务端启动使用</code></li>
+<li><code>clickhouse-compressor: 内置提供的压缩工具, 可用于数据的正压反解</code></li>
+</ul>
+<h3 id="启动命令"><a href="#启动命令" class="headerlink" title="启动命令"></a>启动命令</h3><p><strong>ClickHouse 给我们提供了非常优雅的启动方式。</strong></p>
+<ul>
+<li><strong>启动 ClickHouse：clickhouse start</strong></li>
+<li><strong>关闭 ClickHouse：clickhouse stop</strong></li>
+<li><strong>重启 ClickHouse：clickhouse restart</strong></li>
+</ul>
+<p><strong>注意：在安装 ClickHouse 的时候，系统会自动创建一个名为 clickhouse 的用户，启动脚本会基于此用户来启动服务。因此我们需要将 clickhouse 用户具备相关目录的权限，如果不赋权限，ClickHouse 可能会启动失败。</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">chown</span> clickhouse.clickhouse /var/log/clickhouse-server/ -R </span><br><span class="line"><span class="built_in">chown</span> clickhouse.clickhouse /var/lib/clickhouse/ -R </span><br><span class="line"><span class="comment"># 如果后续你修改了配置文件，改变了 ClickHouse 的数据存储目录，那么也要记得赋给它相应的权限</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>另外，上面通过 clickhouse start 启动的时候我们没有指定配置文件，没错，通过这种方式启动的话，会自动加载 &#x2F;etc&#x2F;clickhouse-server&#x2F;config.xml。</strong></p>
+<p><strong>但如果我们想手动指定配置文件的话，那么需要使用 clickhouse-server。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">clickhouse-server --config-file /etc/clickhouse-server/config.xml --daemon</span><br></pre></td></tr></table></figure>
+
+<p><strong>–config-file 负责指定配置文件，这样即使将配置文件放在了别的地方也没有关系，因为我们可以显式地指定它的位置；–daemon 表示后台启动，因为默认是前台启动的。</strong></p>
+<p><strong>但是注意：使用 clickhouse-server 启动的话，不能使用 root，需要切换到 clickhouse 用户，所以我们应该这么做。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo -u clickhouse clickhouse-server --config-file /etc/clickhouse-server/config.xml --daemon</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意：sudo -u 后面的 clickhouse 指的是名为 clickhouse 的用户，clickhouse start 里面的 clickhouse 指的是 &#x2F;usr&#x2F;bin 里面的可执行文件。这里由于我们配置文件就在默认路径下，所以也可以直接使用 clickhouse start 启动，默认加载 &#x2F;etc&#x2F;clickhouse-server&#x2F;config.xml、并且后台启动。至于关闭的话，直接 clickhouse stop 即可。</strong></p>
+<h3 id="客户端的访问接口"><a href="#客户端的访问接口" class="headerlink" title="客户端的访问接口"></a>客户端的访问接口</h3><p><strong>ClickHouse 服务端的底层访问接口支持 TCP 和 HTTP 两种方式，其中 TCP 拥有更好的性能，其默认监听 9000 端口，主要用于集群间的内部通信及 clickhouse-client 客户端进行连接；而 HTTP 协议则拥有更好的兼容性，可以通过 REST 服务的形式被广泛用于编程语言的客户端，其默认监听 8123 端口。</strong></p>
+<p><strong>下面我们来介绍几种连接方式。</strong></p>
+<h4 id="使用客户端-clickhouse-client-连接服务端"><a href="#使用客户端-clickhouse-client-连接服务端" class="headerlink" title="使用客户端 clickhouse-client 连接服务端"></a>使用客户端 clickhouse-client 连接服务端</h4><p><strong>通过 clickhouse start 将服务启动之后，我们就可以通过客户端进行连接了，通过 clickhouse-client，默认会连接到本机的 9000 端口，并使用 default 用户，如果想单独指定的话可使用如下方式：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">clickhouse-client --host 地址 --port 端口 --user 用户 --password 密码</span><br></pre></td></tr></table></figure>
+
+<p><strong>这里我们的服务端默认也是监听 9000 端口，并且 default 用户还没有密码，所以直接输入 clickhouse-client 即可连接上。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173219404-1535534933.png" alt="img"></p>
+<p><strong>我们看到连接成功，并且也查询成功了，我们需要注意一下图中 show databases 前面的提示内容，很明显它就是我们刚才设置的 FQDN。至此，单节点 ClickHouse 的安装就算完毕了，至于集群的搭建我们后面会说。</strong></p>
+<p><strong>插句题外话，如果我们想要更新 ClickHouse，那么直接下载新版的 ClickHouse RPM 包即可，然后进行更新：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">rpm -Uvh ./*.rpm</span><br></pre></td></tr></table></figure>
+
+<p><strong>升级的时候，原有的配置均会保留。</strong></p>
+<p><strong>然后我们再来聊一下 clickhouse-client，我们上面通过输入 clickhouse-client 进入命令行、然后再执行 SQL 的方式叫做 “交互式执行”，一般用于调试、运维、开发和测试等场景。</strong></p>
+<p><strong>通过交互式执行的 SQL 语句，相关查询结果会统一记录到 ~&#x2F;.clickhouse-client-history 文件中，可以作为审计之用。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173228787-1516845254.png" alt="img"></p>
+<p><strong>但除了交互式执行之外，还有非交互式执行。非交互式执行主要用于批处理场景，诸如对数据的导入和导出操作，在执行脚本命令时，需要追加 –query 参数指定执行的 SQL 语句。举个栗子：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> xxx.csv | clickhouse-client --query <span class="string">&quot;INSERT INTO some_table FORMAT CSV&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>在导入数据时，它可以接收操作系统的 stdin 标准输入作为写入的数据。所以 cat 命令读取的文件流，将会作为 INSERT 查询的数据输入，而在数据导出时，则可以输出流重定向到文件：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">clickhouse-client --query <span class="string">&quot;SELECT * FROM some_table&quot;</span> &gt;&gt; xxx.csv</span><br></pre></td></tr></table></figure>
+
+<p><strong>默认情况下，clickhouse-client 一次只能运行一条 SQL 语句，如果需要执行多次查询，则需要在循环中重复执行，这显然不是一种高效的方式。此时可以追加 –multiquery 参数，它可以支持一次运行多条SQL查询，多条查询之间使用分号分隔，比如：</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173243014-1287564968.png" alt="img"></p>
+<p><strong>多条 SQL 的查询结果集会依次按照顺序返回。</strong></p>
+<p><strong>以上就是 clickhouse-client 的两种运行方式，由于提供了非交互式执行的功能，所以 ClickHouse 的客户端比其它数据库的客户端要强大一些。下面整理一下 clickhouse-client 常用的相关参数：</strong></p>
+<ul>
+<li><code>--host/-h: 指定连接的服务端的地址, 默认是 localhost，如果服务端的地址不是 localhost, 则需要依靠此参数进行指定, 例如 clickhouse-client -h xx.xx.xx.xx</code></li>
+<li><code>--port: 服务端的 TCP 端口, 默认是 9000，如果服务端监听的不是 9000, 则需要此参数指定</code></li>
+<li><code>--user/-u: 登录的用户名, 默认是 default。如果使用非 default 的用户名登录, 则需要使用此参数指定</code></li>
+<li><code>--password: 登录的密码, 默认值为空。如果在用户定义中未设置密码, 则无需填写（比如默认的 default 用户，我们没有设置密码）</code></li>
+<li><code>--database/-d: 登录之后所在的数据库, 默认为 default</code></li>
+<li><code>--query/-q: 只能在非交互式查询时使用, 用于执行指定的 SQL 语句</code></li>
+<li><code>--multiquery/-n: 在非交互式执行时, 允许一次运行多条 SQL 语句, 多条语句之间用分号隔开</code></li>
+<li><code>--time/-t: 在非交互式执行时, 会打印每条 SQL 的执行时间</code></li>
+</ul>
+<p><strong>更多参数可以通过 clickhouse-client –help 查看，数量多到恐怖。</strong></p>
+<h4 id="Python-连接-ClickHouse-服务端"><a href="#Python-连接-ClickHouse-服务端" class="headerlink" title="Python 连接 ClickHouse 服务端"></a>Python 连接 ClickHouse 服务端</h4><p><strong>首先 ClickHouse 支持使用 JDBC 连接，但我本身不是 JAVA 方向的，所以这里只介绍使用 Python 连接 ClickHouse 的方式。</strong></p>
+<blockquote>
+<p><strong>Python 连接 ClickHouse 的话需要安装一个第三方库，直接 pip install clickhouse-driver 即可。</strong></p>
+</blockquote>
+<p><strong>注意：我们说 HTTP 协议使用的是 8123 端口，但是 Python 这个包比较特殊，它和 clickhouse-client 一样，使用的也是 TCP 协议，也就是说端口需要指定为 9000。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173251635-1249075618.png" alt="img"></p>
+<p><strong>使用 Python 是可以连接的，但是注意：我们这里是在服务器上使用 Python 连接的，如果需要在其它机器上连接的话，那么就不能使用 localhost 了。</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> clickhouse_driver <span class="keyword">import</span> Client</span><br><span class="line"></span><br><span class="line"><span class="comment"># 需要指定具体的 ip</span></span><br><span class="line">client = Client(host=<span class="string">&quot;47.94.174.89&quot;</span>, port=<span class="number">9000</span>)</span><br><span class="line"><span class="built_in">print</span>(client.execute(<span class="string">&quot;show databases&quot;</span>))</span><br></pre></td></tr></table></figure>
+
+<p><strong>不过此时仍无法在其它节点上访问，因为我们还需要修改一下服务端的配置，vim &#x2F;etc&#x2F;clickhouse-server&#x2F;config.xml：</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173300172-176175199.png" alt="img"></p>
+<p><strong>listen_host 这个标签默认是被注释掉的，也就是只监听来自本机的请求。这里我们将注释打开，或者不管注释，直接手动增加一条。</strong></p>
+<figure class="highlight xml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">&lt;!-- 改成 0.0.0.0，这样即可接收来自其它机器上的请求 --&gt;</span></span><br><span class="line"><span class="tag">&lt;<span class="name">listen_host</span>&gt;</span>0.0.0.0<span class="tag">&lt;/<span class="name">listen_host</span>&gt;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>此时 Python 即可在其它节点上访问了，注意：服务器的 9000 端口是要对外开放的，这里我阿里云服务器的 9000、8123 端口都已经对外了。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173307872-1755060506.png" alt="img"></p>
+<p><strong>此外我们还可以通过 sqlalchemy 去连接，但是默认情况下 sqlalchemy 找不到对应的 dialect，我们需要再安装一个模块：pip install sqlalchemy_clickhouse，安装之后就可以使用了。</strong></p>
+<p><strong>但是有一点需要注意：使用 sqlalchemy_clickhouse 的话，那么连接的端口就不能是 9000 了，而是 8123。更准确的说，需要使用 HTTP 端口。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173314413-994480208.png" alt="img"></p>
+<p><strong>以上就是 Python 连接 ClickHouse 的两种方式，还是挺容易的。</strong></p>
+<h4 id="DataGrip-连接-ClickHouse-服务端"><a href="#DataGrip-连接-ClickHouse-服务端" class="headerlink" title="DataGrip 连接 ClickHouse 服务端"></a>DataGrip 连接 ClickHouse 服务端</h4><p><strong>DataGrip 是 JetBrains 公司开发的一个 IDE，专门负责连接数据库，其中也包含了对 ClickHouse 的支持。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173323068-652157345.png" alt="img"></p>
+<p><strong>点击之后下载相应的驱动，然后输入相关信息即可。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173335772-2053147215.png" alt="img"></p>
+<p><strong>我们看到连接成功，里面还显示了 ClickHouse 支持的内置函数。然后我们执行 SQL 语句测试一下：</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173345219-323654674.png" alt="img"></p>
+<h3 id="内置的实用工具"><a href="#内置的实用工具" class="headerlink" title="内置的实用工具"></a>内置的实用工具</h3><p><strong>我们说 &#x2F;usr&#x2F;bin 下面包含了很多关于 ClickHouse 的启动文件，除了之前介绍的四个，这里再介绍两个，分别是 clickhouse-local 和 clickhouse-benchmark。</strong></p>
+<h4 id="clickhouse-local"><a href="#clickhouse-local" class="headerlink" title="clickhouse-local"></a>clickhouse-local</h4><p><strong>clickhouse-local 可以独立运行大部分的 SQL 查询，不需要依赖任何 ClickHouse 服务端程序，它可以理解为 ClickHouse 服务的单机版内核，是一个轻量级的应用程序。clickhouse-local 只能够使用 File 引擎（或者称之为表引擎），关于引擎后面会展开。它的数据与同机运行的 ClickHouse 服务之间也是完全隔离的，互相并不能访问。</strong></p>
+<p><strong>clickhouse-local 是非交互式的，每次执行都需要指定数据来源，例如通过 stdin 标准输入，以 echo 打印作为数据来源：</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173352370-520401822.png" alt="img"></p>
+<p><strong>也可以借助操作系统的命令，实现对系统用户内存用量的查询。</strong></p>
+<p><img src="/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/1229382-20210816173358237-1560136843.png" alt="img"></p>
+<p><strong>clickhouse-local 的参数用法可以通过 –help 查看，但是个人觉得不是很常用。</strong></p>
+<h4 id="clickhouse-benchmark"><a href="#clickhouse-benchmark" class="headerlink" title="clickhouse-benchmark"></a>clickhouse-benchmark</h4><p><strong>clickhouse-benchmark 是基准测试的小工具，它可以自动运行 SQL 查询，并生成对应的运行指标报告，例如执行下面的语句启动测试：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">echo</span> <span class="string">&quot;SELECT * FROM table&quot;</span> | clickhouse-benchmark -i 5</span><br></pre></td></tr></table></figure>
+
+<p><strong>执行之后，按照指定参数的查询会被执行 5 次。执行完毕之后，会显示包含 QPS、RPS 等指标信息的报告，还会列出各百分位的查询执行时间。</strong></p>
+<p><strong>如果想测试多条 SQL，此时就需要将 SQL 写在文件中，然后通过 clickhouse-benchmark -i 5 &lt; 文件路径，将里面的 SQL 按照顺序依次执行。</strong></p>
+<blockquote>
+<p><strong>这里我就不使用具体的数据测试了，有兴趣可以自己尝试一下。</strong></p>
+</blockquote>
+<p><strong>clickhouse-benchmark 的一些核心参数可以通过 –help 查看。</strong></p>
+<p><strong>以上我们介绍了基于离线 RPM 包安装 ClickHouse 的整个过程，当然也可以使用其它方式安装，比如：在线安装、或者使用 docker 等等。事实上，这种离线安装的方式也不麻烦，相反个人觉得还很简单。然后还介绍了访问 ClickHouse 的两个接口，TCP 接口和 HTTP 接口，以及如何使用 Python 去访问。那么就来学习 ClickHouse 的具体语法了，首先会从数据定义开始。</strong></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="https://hesay.cn">wenwen</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="https://hesay.cn/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/">https://hesay.cn/2023/02/01/ClickHouse%20%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7(%E4%BA%8C)/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="https://hesay.cn" target="_blank">热心市民温温</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/ClickHouse/">ClickHouse</a></div><div class="post_share"><div class="social-share" data-image="/img/favicon.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2023/02/01/ClickHouse%20%E7%9A%84%E6%95%B0%E6%8D%AE%E7%B1%BB%E5%9E%8B(%E4%B8%89)/" title="ClickHouse 的数据类型"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">ClickHouse 的数据类型</div></div></a></div><div class="next-post pull-right"><a href="/2022/12/01/Bean%E6%B3%A8%E5%85%A5%E7%9A%84%E5%9B%9B%E7%A7%8D%E6%96%B9%E5%BC%8F-bean%E6%B3%A8%E5%85%A5%E7%9A%84%E5%9B%9B%E7%A7%8D%E6%96%B9%E5%BC%8F/" title="Bean注入的四种方式"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">Bean注入的四种方式</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><div><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E5%85%B6%E5%AE%83%E5%B8%B8%E8%A7%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E(%E5%85%AB)/" title="ClickHouse 中其它常见的表引擎"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 中其它常见的表引擎</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/" title="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E7%9A%84%E6%95%B0%E6%8D%AE%E6%9F%A5%E8%AF%A2%E4%BB%A5%E5%8F%8A%E5%90%84%E7%A7%8D%E5%AD%90%E5%8F%A5(%E4%B9%9D)/" title="ClickHouse 中的数据查询以及各种子句"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 中的数据查询以及各种子句</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E4%B9%8B%20MergeTree%20%E5%AE%B6%E6%97%8F%E4%B8%AD%E7%9A%84%E5%85%B6%E5%AE%83%E8%A1%A8%E5%BC%95%E6%93%8E(%E4%B8%83)/" title="ClickHouse 之 MergeTree 家族中的其它表引擎"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 之 MergeTree 家族中的其它表引擎</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E5%85%B6%E5%AE%83%E7%9A%84%E4%B8%80%E4%BA%9B%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0%20(%E5%8D%81%E4%BA%94)/" title="ClickHouse 其它的一些操作函数"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 其它的一些操作函数</div></div></a></div><div><a href="/2023/03/01/ClickHouse%20%E6%95%B0%E6%8D%AE%E8%A1%A8%E7%9A%84%E5%A2%9E%E5%88%A0%E6%94%B9(%E4%BA%94)/" title="ClickHouse 数据表的增删改"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-03-01</div><div class="title">ClickHouse 数据表的增删改</div></div></a></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src="/img/favicon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info__name">wenwen</div><div class="author-info__description"></div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/wenlinshan"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">码海无涯。。。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#ClickHouse-%E7%9A%84%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E3%80%81%E5%AE%89%E8%A3%85%E6%96%B9%E5%BC%8F%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7"><span class="toc-number">1.</span> <span class="toc-text">ClickHouse 的架构设计、安装方式以及连接工具</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Column-%E4%B8%8E-Field"><span class="toc-number">1.0.1.</span> <span class="toc-text">Column 与 Field</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#DataType"><span class="toc-number">1.0.2.</span> <span class="toc-text">DataType</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Block-%E5%92%8C-Block%E6%B5%81"><span class="toc-number">1.0.3.</span> <span class="toc-text">Block 和 Block流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Table"><span class="toc-number">1.0.4.</span> <span class="toc-text">Table</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Parser-%E5%92%8C-Interpreter"><span class="toc-number">1.0.5.</span> <span class="toc-text">Parser 和 Interpreter</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Functions-%E4%B8%8E-Aggregate-Functions"><span class="toc-number">1.0.6.</span> <span class="toc-text">Functions 与 Aggregate Functions</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Cluster-%E4%B8%8E-Replication"><span class="toc-number">1.0.7.</span> <span class="toc-text">Cluster 与 Replication</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#ClickHouse-%E7%9A%84%E5%AE%89%E8%A3%85%E4%BB%A5%E5%8F%8A%E8%BF%9E%E6%8E%A5%E5%B7%A5%E5%85%B7"><span class="toc-number">1.1.</span> <span class="toc-text">ClickHouse 的安装以及连接工具</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%9B%AE%E5%BD%95%E7%BB%93%E6%9E%84"><span class="toc-number">1.1.1.</span> <span class="toc-text">目录结构</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%90%AF%E5%8A%A8%E5%91%BD%E4%BB%A4"><span class="toc-number">1.1.2.</span> <span class="toc-text">启动命令</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%AE%A2%E6%88%B7%E7%AB%AF%E7%9A%84%E8%AE%BF%E9%97%AE%E6%8E%A5%E5%8F%A3"><span class="toc-number">1.1.3.</span> <span class="toc-text">客户端的访问接口</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%BD%BF%E7%94%A8%E5%AE%A2%E6%88%B7%E7%AB%AF-clickhouse-client-%E8%BF%9E%E6%8E%A5%E6%9C%8D%E5%8A%A1%E7%AB%AF"><span class="toc-number">1.1.3.1.</span> <span class="toc-text">使用客户端 clickhouse-client 连接服务端</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Python-%E8%BF%9E%E6%8E%A5-ClickHouse-%E6%9C%8D%E5%8A%A1%E7%AB%AF"><span class="toc-number">1.1.3.2.</span> <span class="toc-text">Python 连接 ClickHouse 服务端</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#DataGrip-%E8%BF%9E%E6%8E%A5-ClickHouse-%E6%9C%8D%E5%8A%A1%E7%AB%AF"><span class="toc-number">1.1.3.3.</span> <span class="toc-text">DataGrip 连接 ClickHouse 服务端</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%86%85%E7%BD%AE%E7%9A%84%E5%AE%9E%E7%94%A8%E5%B7%A5%E5%85%B7"><span class="toc-number">1.1.4.</span> <span class="toc-text">内置的实用工具</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#clickhouse-local"><span class="toc-number">1.1.4.1.</span> <span class="toc-text">clickhouse-local</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#clickhouse-benchmark"><span class="toc-number">1.1.4.2.</span> <span class="toc-text">clickhouse-benchmark</span></a></li></ol></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E5%85%B6%E5%AE%83%E5%B8%B8%E8%A7%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E(%E5%85%AB)/" title="ClickHouse 中其它常见的表引擎">ClickHouse 中其它常见的表引擎</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/" title="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析">ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E7%9A%84%E6%95%B0%E6%8D%AE%E6%9F%A5%E8%AF%A2%E4%BB%A5%E5%8F%8A%E5%90%84%E7%A7%8D%E5%AD%90%E5%8F%A5(%E4%B9%9D)/" title="ClickHouse 中的数据查询以及各种子句">ClickHouse 中的数据查询以及各种子句</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B9%8B%20MergeTree%20%E5%AE%B6%E6%97%8F%E4%B8%AD%E7%9A%84%E5%85%B6%E5%AE%83%E8%A1%A8%E5%BC%95%E6%93%8E(%E4%B8%83)/" title="ClickHouse 之 MergeTree 家族中的其它表引擎">ClickHouse 之 MergeTree 家族中的其它表引擎</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E5%85%B6%E5%AE%83%E7%9A%84%E4%B8%80%E4%BA%9B%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0%20(%E5%8D%81%E4%BA%94)/" title="ClickHouse 其它的一些操作函数">ClickHouse 其它的一些操作函数</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2020 - 2023 By wenwen</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.umd.min.js"></script><div class="js-pjax"></div><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-nest.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="is-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据库加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div><hr/><div id="local-search-results"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></body></html>

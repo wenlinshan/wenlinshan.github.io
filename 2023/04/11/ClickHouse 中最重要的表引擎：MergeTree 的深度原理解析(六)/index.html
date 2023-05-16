@@ -1,0 +1,434 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"><title>ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析 | 热心市民温温</title><meta name="author" content="wenwen"><meta name="copyright" content="wenwen"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析​																	本文来源： ( https:&#x2F;&#x2F;www.cnblogs.com&#x2F;traditional&#x2F;tag&#x2F;ClickHouse：一款速度快到让人发指的列式存储数据库&#x2F; )   楔子表引擎是 ClickHouse 中的一大特色，可以说表引擎决定了一张表最终的性格，比如数据表拥有何种特性、数据以何种形式">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析">
+<meta property="og:url" content="https://hesay.cn/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/index.html">
+<meta property="og:site_name" content="热心市民温温">
+<meta property="og:description" content="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析​																	本文来源： ( https:&#x2F;&#x2F;www.cnblogs.com&#x2F;traditional&#x2F;tag&#x2F;ClickHouse：一款速度快到让人发指的列式存储数据库&#x2F; )   楔子表引擎是 ClickHouse 中的一大特色，可以说表引擎决定了一张表最终的性格，比如数据表拥有何种特性、数据以何种形式">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://hesay.cn/img/favicon.png">
+<meta property="article:published_time" content="2023-04-11T09:04:31.000Z">
+<meta property="article:modified_time" content="2023-04-13T09:06:57.974Z">
+<meta property="article:author" content="wenwen">
+<meta property="article:tag" content="ClickHouse">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://hesay.cn/img/favicon.png"><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://hesay.cn/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  source: {
+    justifiedGallery: {
+      js: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.js',
+      css: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.css'
+    }
+  },
+  isPhotoFigcaption: false,
+  islazyload: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  }
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2023-04-13 17:06:57'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(win=>{
+    win.saveToLocal = {
+      set: function setWithExpiry(key, value, ttl) {
+        if (ttl === 0) return
+        const now = new Date()
+        const expiryDay = ttl * 86400000
+        const item = {
+          value: value,
+          expiry: now.getTime() + expiryDay,
+        }
+        localStorage.setItem(key, JSON.stringify(item))
+      },
+
+      get: function getWithExpiry(key) {
+        const itemStr = localStorage.getItem(key)
+
+        if (!itemStr) {
+          return undefined
+        }
+        const item = JSON.parse(itemStr)
+        const now = new Date()
+
+        if (now.getTime() > item.expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return item.value
+      }
+    }
+  
+    win.getScript = url => new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = url
+      script.async = true
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    })
+  
+    win.getCSS = (url,id = false) => new Promise((resolve, reject) => {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = url
+      if (id) link.id = id
+      link.onerror = reject
+      link.onload = link.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        link.onload = link.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(link)
+    })
+  
+      win.activateDarkMode = function () {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = function () {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+          if (t === 'dark') activateDarkMode()
+          else if (t === 'light') activateLightMode()
+        
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+    const detectApple = () => {
+      if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+    })(window)</script><meta name="generator" content="Hexo 6.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src="/img/favicon.png" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fa fa-graduation-cap"></i><span> 博文</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></li></ul></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-list"></i><span> 生活</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/shuoshuo/"><i class="fa-fw fa fa-comments-o"></i><span> 分享</span></a></li><li><a class="site-page child" href="/photos/"><i class="fa-fw fa fa-camera-retro"></i><span> 相册</span></a></li><li><a class="site-page child" href="/music/"><i class="fa-fw fa fa-music"></i><span> 音乐</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> 影视</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/links/"><i class="fa-fw fa fa-link"></i><span> 友链</span></a></div><div class="menus_item"><a class="site-page" href="/comment/"><i class="fa-fw fa fa-paper-plane"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于笔者</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="not-top-img" id="page-header"><nav id="nav"><span id="blog-info"><a href="/" title="热心市民温温"><span class="site-name">热心市民温温</span></a></span><div id="menus"><div id="search-button"><a class="site-page social-icon search" href="javascript:void(0);"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fa fa-graduation-cap"></i><span> 博文</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></li></ul></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fas fa-list"></i><span> 生活</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/shuoshuo/"><i class="fa-fw fa fa-comments-o"></i><span> 分享</span></a></li><li><a class="site-page child" href="/photos/"><i class="fa-fw fa fa-camera-retro"></i><span> 相册</span></a></li><li><a class="site-page child" href="/music/"><i class="fa-fw fa fa-music"></i><span> 音乐</span></a></li><li><a class="site-page child" href="/movies/"><i class="fa-fw fas fa-video"></i><span> 影视</span></a></li></ul></div><div class="menus_item"><a class="site-page" href="/links/"><i class="fa-fw fa fa-link"></i><span> 友链</span></a></div><div class="menus_item"><a class="site-page" href="/comment/"><i class="fa-fw fa fa-paper-plane"></i><span> 留言板</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于笔者</span></a></div></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);"><i class="fas fa-bars fa-fw"></i></a></div></div></nav></header><main class="layout" id="content-inner"><div id="post"><div id="post-info"><h1 class="post-title">ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2023-04-13T09:06:57.974Z" title="更新于 2023-04-13 17:06:57">2023-04-13</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/ClickHouse/">ClickHouse</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div><article class="post-content" id="article-container"><h1 id="ClickHouse-中最重要的表引擎：MergeTree-的深度原理解析"><a href="#ClickHouse-中最重要的表引擎：MergeTree-的深度原理解析" class="headerlink" title="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析"></a>ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析</h1><p>​																	本文来源： ( <a target="_blank" rel="noopener" href="https://www.cnblogs.com/traditional/tag/ClickHouse%EF%BC%9A%E4%B8%80%E6%AC%BE%E9%80%9F%E5%BA%A6%E5%BF%AB%E5%88%B0%E8%AE%A9%E4%BA%BA%E5%8F%91%E6%8C%87%E7%9A%84%E5%88%97%E5%BC%8F%E5%AD%98%E5%82%A8%E6%95%B0%E6%8D%AE%E5%BA%93/">https://www.cnblogs.com/traditional/tag/ClickHouse：一款速度快到让人发指的列式存储数据库/</a> ) </p>
+<hr>
+<h2 id="楔子"><a href="#楔子" class="headerlink" title="楔子"></a>楔子</h2><p><strong>表引擎是 ClickHouse 中的一大特色，可以说表引擎决定了一张表最终的性格，比如数据表拥有何种特性、数据以何种形式被存储以及如何被加载。ClickHouse 拥有非常庞大的表引擎体系，总共有合并树、外部存储、内存、文件、接口和其它 6 大类 20 多种表引擎，而在这众多的表引擎中，又属合并树（MergeTree）表引擎及其家族系列（*MergeTree）最为强大，在生产环境中绝大部分场景都会使用此引擎。因为只有合并树系列的表引擎才支持主键索引、数据分区、数据副本、数据采样等特性，同时也只有此系列的表引擎支持 ALTER 相关操作。因此这里我们着重介绍合并树，因为它非常非常非常重要，并且难度也最高，至于其它的表引擎由于比较简单，所以我们放到后面再介绍。</strong></p>
+<p><strong>当然我们说合并树家族自身也有很多表引擎的变种，其中 MergeTree 作为家族中最为基础的表引擎，提供了主键索引、数据分区、数据副本和数据采样等基本能力，而家族中的其它其它表引擎则在 MergeTree 的基础之上各有所长。比如 ReplacingMergeTree 表引擎具有删除重复数据的特性，而 SummingMergeTree 表引擎则会按照排序键自动聚合数据。如果再给合并树系列的表引擎加上 Replicated 前缀，又会得到一组支持数据副本的表引擎，例如 ReplicatedMergeTree、ReplicatedReplacingMergeTree、ReplicatedSummingMergeTree、ReplicatedAggregatingMergeTree 等等。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121005343-128425369.png" alt="img"></p>
+<p><strong>虽然合并树的变种有很多，但 MergeTree 表引擎才是根基。作为合并树家族最基础的表引擎，MergeTree 具备了该系列其它表引擎共有的基本特征，吃透了 MergeTree 表引擎的基本原理，就掌握了该系列表引擎的精髓。</strong></p>
+<h2 id="MergeTree-的创建方式与存储结构"><a href="#MergeTree-的创建方式与存储结构" class="headerlink" title="MergeTree 的创建方式与存储结构"></a>MergeTree 的创建方式与存储结构</h2><p><strong>MergeTree 在写入一批数据时，数据总会以数据片段的形式写入磁盘，且数据片段不可修改。而为了避免数据片段过多，ClickHouse 会通过后台线程定期的合并这些数据片段，属于相同分区的数据片段会被合并成一个新的数据片段，这种数据片段往复合并的过程，正是 MergeTree 名称的由来。</strong></p>
+<h3 id="MergeTree-的创建方式"><a href="#MergeTree-的创建方式" class="headerlink" title="MergeTree 的创建方式"></a>MergeTree 的创建方式</h3><p><strong>创建数据表的方法我们上面介绍过，而创建 MergeTree 数据表只需要在创建表的时候将 ENGINE 指定为 MergeTree() 即可，其完整语法如下：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> [IF <span class="keyword">NOT</span> <span class="keyword">EXISTS</span>] [db_name.]table_name(</span><br><span class="line">    name1 type [<span class="keyword">DEFAULT</span><span class="operator">|</span>MATERIALIZED<span class="operator">|</span>ALIAS expr],</span><br><span class="line">    name2 type [<span class="keyword">DEFAULT</span><span class="operator">|</span>MATERIALIZED<span class="operator">|</span>ALIAS expr],</span><br><span class="line">    ......</span><br><span class="line">) ENGINE <span class="operator">=</span> MergeTree()</span><br><span class="line">[<span class="keyword">PARTITION</span> <span class="keyword">BY</span> expr]</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> expr</span><br><span class="line">[<span class="keyword">PRIMARY</span> KEY expr]</span><br><span class="line">[SAMPLE <span class="keyword">BY</span> expr]</span><br><span class="line">[SETTINGS name1<span class="operator">=</span>value1, name2<span class="operator">=</span>value2, ......]</span><br></pre></td></tr></table></figure>
+
+<p><strong>我们看到 MergeTree 表引擎除了常规的参数之外，还有一些独有的配置选项，一会儿会详细介绍这几个重要的配置项，包括它们的使用方法和工作原理，目前先来大致看一下它们的作用。</strong></p>
+<p><strong>1） PARTITON BY：选填，表示分区键，用于指定表数据以何种标准进行分区。分区键既可以是单个字段、也可以通过元组的形式指定多个字段，同时也支持使用列表达式。如果不支持分区键，那么 ClickHouse 会生成一个名称为 all 的分区，合理地使用分区可以有效的减少查询时数据量。最常见的莫过于按照时间分区了，数据量非常大的时候可以按照天来分区，一天一个分区，这样查找某一天的数据时直接从指定分区中查找即可。</strong></p>
+<p><strong>2）ORDER BY：必填，表示排序键，用于指定在一个分区内，数据以何种标准进行排序。排序键既可以是单个字段，例如 ORDER BY CounterID，也可以是通过元组声明的多个字段，例如 ORDER BY (CounterID, EventDate)。如果是多个字段，那么会先按照第一个字段排序，如果第一个字段中有相同的值，那么再按照第二个字段排序，依次类推。总之在每个分区内，数据是按照分区键排好序的，但多个分区之间就没有这种关系了。</strong></p>
+<p><strong>3）PRIMARY KEY：选填，表示主键，声明之后会依次按照主键字段生成一级索引，用于加速表查询。如果不指定，那么主键默认和排序键相同，所以通常直接使用 ORDER BY 代为指定主键，无须使用 PRIMARY KEY 声明。所以一般情况下，在每个分区内，数据与一级索引以相同的规则升序排列（因为数据是按照排序键排列的，而一级索引也是按排序键、也就是主键进行排列的）。和其它关系型数据库不同，MergeTree 允许主键有重复数据（可以通过 ReplacingMergeTree 实现去重）。</strong></p>
+<p><strong>4）SAMPLE KEY：选填，抽样表达式。用于声明数据以何种标准进行采样，注意：如果声明了此配置项，那么主键的配置中也要声明同样的表达式。例如：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">    ......</span><br><span class="line">) ENGINE <span class="operator">=</span> MergeTree()</span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> (CountID, EventDate, intHash32(UserID))</span><br><span class="line">SAMPLE <span class="keyword">BY</span> intHash32(UserID)</span><br><span class="line"><span class="comment">-- 抽样表达式需要配合 SAMPLE 子查询使用，该功能对选取抽样数据十分有用</span></span><br><span class="line"><span class="comment">-- 关于抽样查询，后面会在介绍查询的时候说</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>5）SETTINGS：选填，用于指定一些额外的参数，以 name&#x3D;value 的形式出现，name 主要包含 index_granularity、min_compress_block_size、index_granularity_bytes、enbale_mixed_granularity_parts、merge_with_ttl_timeout、storage_policy，比如：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">    ......</span><br><span class="line">) ENGINE = MergeTree()</span><br><span class="line">......</span><br><span class="line">SETTINGS index_granularity=8192, min_compress_block_size=6536</span><br></pre></td></tr></table></figure>
+
+<p><strong>下面解释一下这些参数的含义：</strong></p>
+<blockquote>
+<p><strong>index_granularity：对于 MergeTree 而言是一个非常重要的参数，它表示索引的粒度，默认值为 8192。所以 ClickHouse 根据主键生成的索引实际上稀疏索引，默认情况下是每隔 8192 行数据才生成一条索引。类似于 kafka 的日志数据段，kafka 的每个数据段是由存储实际消息的数据文件，和用于加速消息查找的索引文件组成，而 kafka 的索引文件建立的也是稀疏索引。</strong></p>
+<p><strong>min_compress_block_size：我们知道 ClickHouse 是会对数据进行压缩的，而 min_compress_block_size 表示的就是最小压缩的块大小，默认值为 65536。</strong></p>
+<p><strong>index_granularity_bytes：在 19.11 版本之前 ClickHouse 只支持固定大小的索引间隔，由 index_granularity 控制，但是在新版本中增加了自适应间隔大小的特性，即根据每批次写入的数据的体量大小，动态划分间隔大小。而数据的体量大小，则由 index_granularity_bytes 参数控制的，默认为 10M，设置为 0 表示不启用自适应功能。</strong></p>
+<p><strong>enbale_mixed_granularity_parts：表示是否开启自适应索引的功能，默认是开启的。</strong></p>
+<p><strong>merge_with_ttl_timeout：从 19.6 版本开始 MergeTree 提供了数据的 TTL 功能，该部分后面详细说。</strong></p>
+<p><strong>storage_policy：从 19.15 版本开始 MergeTree 提供了多路径的存储策略，该部分同样留到后面详细说。</strong></p>
+</blockquote>
+<h3 id="MergeTree-数据表的存储结构"><a href="#MergeTree-数据表的存储结构" class="headerlink" title="MergeTree 数据表的存储结构"></a>MergeTree 数据表的存储结构</h3><p><strong>我们说在 ClickHouse 中一张表对应一个目录，那么 MergeTree 数据表对应的目录结构如何呢？我们之前说表对应的目录里面存储的就是文本文件（数据在磁盘上的载体），但对于 MergeTree 数据表而言还不太一样，因为我们说 MergeTree 数据表是有分区的，所以表对应的目录里面存储的还是目录。并且每个目录对应一个分区，因此也叫分区目录，而分区目录里面存储的才是负责容纳数据的文本文件。</strong></p>
+<p><strong>所以一张 MergeTree 数据表在磁盘上的物理结构分为三个层级，依次是数据表目录、分区目录、以及各分区目录下的数据文件。我们画一张图：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121016351-909176633.png" alt="img"></p>
+<p><strong>分别解释一下它们的作用：</strong></p>
+<p><strong>1）partition：分区目录，里面的各类数据文件（primary.idx、data.mrk、data.bin 等等）都是以分区目录的形式被组织存放的，属于相同分区的数据，最终会被合并到同一个分区目录，而不同分区的数据永远不会被合并在一起。关于数据分区的细节，后面会详细说。</strong></p>
+<p><strong>2）checksums.txt：校验文件，使用二进制的格式进行存储，它保存了余下各类文件（primary.txt、count.txt 等等）的 size 大小以及哈希值，用于快速校验文件的完整性和正确性。</strong></p>
+<p><strong>3）columns.txt：列信息文件，使用明文格式存储，用于保存此分区下的列字段信息，比如我们创建一张表：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- 该表负责存储用户参加过的活动，每参加一个活动，就会生成一条记录</span></span><br><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> IF <span class="keyword">NOT</span> <span class="keyword">EXISTS</span> user_activity_event (</span><br><span class="line">    ID UInt64,  <span class="comment">-- 表的 ID</span></span><br><span class="line">    UserName String,  <span class="comment">-- 用户名</span></span><br><span class="line">    ActivityName String,  <span class="comment">-- 活动名称</span></span><br><span class="line">    ActivityType String,  <span class="comment">-- 活动类型</span></span><br><span class="line">    ActivityLevel Enum(<span class="string">&#x27;Easy&#x27;</span> <span class="operator">=</span> <span class="number">0</span>, <span class="string">&#x27;Medium&#x27;</span> <span class="operator">=</span> <span class="number">1</span>, <span class="string">&#x27;Hard&#x27;</span> <span class="operator">=</span> <span class="number">2</span>),  <span class="comment">-- 活动难度等级</span></span><br><span class="line">    IsSuccess Int8,  <span class="comment">-- 是否成功</span></span><br><span class="line">    JoinTime <span class="type">DATE</span>  <span class="comment">-- 参加时间</span></span><br><span class="line">) ENGINE <span class="operator">=</span> MergeTree()</span><br><span class="line"><span class="keyword">PARTITION</span> <span class="keyword">BY</span> toYYYYMM(JoinTime)  <span class="comment">-- 按照 toYYYYMM(JoinTime) 进行分区</span></span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> ID;  <span class="comment">-- 按照 ID 字段排序</span></span><br><span class="line"></span><br><span class="line"><span class="comment">-- 插入一条数据</span></span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> user_activity_event <span class="keyword">VALUES</span> (<span class="number">1</span>, <span class="string">&#x27;张三&#x27;</span>, <span class="string">&#x27;寻找遗失的时间&#x27;</span>, <span class="string">&#x27;市场营销&#x27;</span>, <span class="string">&#x27;Medium&#x27;</span>, <span class="number">1</span>, <span class="string">&#x27;2020-05-13&#x27;</span>)</span><br></pre></td></tr></table></figure>
+
+<p><strong>然后查看相关信息：</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">[root@satori ~]<span class="comment"># cat /var/lib/clickhouse/data/default/user_activity_event/202005_1_1_0/columns.txt </span></span><br><span class="line">columns format version: 1</span><br><span class="line">7 columns:</span><br><span class="line">`ID` UInt64</span><br><span class="line">`UserName` String</span><br><span class="line">`ActivityName` String</span><br><span class="line">`ActivityType` String</span><br><span class="line">`ActivityLevel` Enum8(<span class="string">&#x27;Easy&#x27;</span> = 0, <span class="string">&#x27;Medium&#x27;</span> = 1, <span class="string">&#x27;Hard&#x27;</span> = 2)</span><br><span class="line">`IsSuccess` Int8</span><br><span class="line">`JoinTime` Date</span><br><span class="line">[root@satori ~]<span class="comment"># </span></span><br></pre></td></tr></table></figure>
+
+<p><strong>4）count.txt：计数文件，使用明文格式存储，用于记录当前分区下的数据总数。所以后续在查询数据总量的时候可以瞬间返回，因为已经提前记录好了。</strong></p>
+<figure class="highlight sh"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[root@satori ~]<span class="comment"># cat /var/lib/clickhouse/data/default/user_activity_event/202005_1_1_0/count.txt </span></span><br><span class="line">1</span><br></pre></td></tr></table></figure>
+
+<p><strong>5）primary.idx：一级索引文件，使用二进制格式存储，用于存储稀疏索引，一张 MergeTree 表只能声明一次一级索引（通过 ORDER BY 或 PRIMARY KEY）。借助稀疏索引，在查询数据时能够排除主键条件范围之外的数据文件，从而有效减少数据扫描范围，加速查询速度。</strong></p>
+<p><strong>6）data.bin：数据文件，使用压缩格式存储，默认为 LZ4 格式，用于存储表的数据。在老版本中每一个列字段都有自己独立的 .bin 数据文件，并以列字段命名，但是在新版本中只有一个 data.bin，也就是合并在一起了。</strong></p>
+<p><strong>7）data.mrk：标记文件，使用二进制格式存储，标记文件中保存了 data.bin 文件中数据的偏移量信息，并且标记文件与稀疏索引对齐，因此 MergeTree 通过标记文件建立了稀疏索引（primary.idx）与数据文件（data.bin）之间的映射关系。而在读取数据的时候，首先会通过稀疏索引（primary.idx）找到对应数据的偏移量信息（data.mrk），因为两者是对齐的，然后再根据偏移量信息直接从 data.bin 文件中读取数据。</strong></p>
+<p><strong>8）data.mrk3：如果使用了自适应大小的索引间隔，则标记文件会以 data.mrk3 结尾，但它的工作原理和 data.mrk 文件是相同的。</strong></p>
+<p><strong>9）partition.dat 和 minmax_[Column].idx：如果使用了分区键，例如上面的 PARTITION BY toYYYYMM(JoinTime)，则会额外生成 partition.dat 与 minmax_JoinTime.idx 索引文件，它们均使用二进制格式存储。partition.dat 用于保存当前分区下分区表达式最终生成的值，而 minmax_[Column].idx 则负责记录当前分区下分区字段对应原始数据的最小值和最大值。举个栗子，假设我们往上面的 user_activity_event 表中插入了 5 条数据，JoinTime 分别 2020-05-05、2020-05-15、2020-05-31、2020-05-03、2020-05-24，显然这 5 条都会进入到同一个分区，因为 toYYYMM 之后它们的结果是相同的，都是 2020-05，而 partition.dat 中存储的就是 2020-05，也就是分区表达式最终生成的值；同时还会有一个 minmax_JoinTime.idx 文件，里面存储的就是 2020-05-03 2020-05-31，也就是分区字段对应的原始数据的最小值和最大值。</strong></p>
+<p><strong>在这些分区索引的作用下，进行数据查询时能够快速跳过不必要的分区目录，从而减少最终需要扫描的数据范围。比如我们存储了 JoinTime 为 2020-01-01 到 2020-12-31 一整年用户参加活动的数据，那么 toYYYYMM 之后肯定就会有 12 个分区，然后按照 JoinTime 查找数据的时候，比如要查找 JoinTime 为 2020-06-12 的数据，那么直接去指定的分区（2020-06）中查找即可，也就是我们通过分区机制将查询范围限定在 2020-06，其余的 11 个月的数据我们压根不用看，因此大大减少了查询的数据量。</strong></p>
+<p><strong>10）skp_idx_[IndexName].idx 和 skp_idx_[IndexName].mrk3：如果在建表语句中指定了二级索引（后面会说），则会额外生成相应的二级索引文件与标记文件，它们同样使用二进制存储。二级索引在 ClickHouse 中又被称为跳数索引，目前拥有 minmax、set、ngrambf_v1 和 token_v1 四种类型，这些种类的跳数索引的目的和一级索引都相同，都是为了进一步减少数据的扫描范围，从而加速整个查询过程。</strong></p>
+<h2 id="数据分区"><a href="#数据分区" class="headerlink" title="数据分区"></a>数据分区</h2><p><strong>通过之前的介绍我们已经知道在 MergeTree 数据表中，数据是以分区目录的形式进行组织的，每个分区的数据独立分开存储。借助这种形式，MergeTree 在查询数据时，可以跳过无用的数据文件，只在最小分区目录子集中查询。这里再强调一次，在 ClickHouse 中存在数据分区（partition）和数据分片（shard），但它们是完全不同的概念。数据分区是针对本地数据而言的，相当于是对数据的一种纵向切分，就类似将关系型数据中的一张大高表切成多张个头没那么高的子表。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121030557-1616523231.png" alt="img"></p>
+<p><strong>而数据分片则与 ClickHouse 集群相关，我们后面会说，我们目前都是单机的，所以不涉及数据分片。</strong></p>
+<h3 id="数据的分区规则"><a href="#数据的分区规则" class="headerlink" title="数据的分区规则"></a>数据的分区规则</h3><p><strong>MergeTree 数据表的分区规则由分区 ID 决定，而具体到每个分区对应的 ID 则是由分区键的取值决定的。分区键支持使用任何一个或一组字段表达式声明，其业务语义可以是年、月、日或者组织单位等任何一种规则，而针对取值数据的类型不同，分区 ID 的生成逻辑目前拥有四种规则：</strong></p>
+<ul>
+<li><code>1. 不指定分区键：如果不使用分区键，即不使用 PARTITION BY 声明任何分区表达式，则分区 ID 默认为 all，所有的数据都会被写入 all 这个分区</code></li>
+<li><code>2. 使用整型：如果分区键的取值为整型（UInt64、Int8 等等都算），且无法转成日期类型 YYYYMMDD 格式，则直接按照该整型的字符串形式作为分区 ID 的取值</code></li>
+<li><code>3. 使用日期类型：如果分区键取值属于日期类型，或者是能够转换为 YYYYMMDD 格式的整型，则使用按照 YYYYMMDD 进行格式化后的字符串形式作为分区 ID 的取值</code></li>
+<li><code>4. 使用其它类型：如果分区键取值既不是整型、也不是日期类型，比如 String、Float 等等。则通过 128 位 Hash 算法取其 Hash 值作为分区 ID 的取值</code></li>
+</ul>
+<p><strong>以我们之前的 PARTITION BY toYYYYMM(JoinTime) 为例，当写入一条 JoinTime 为 2020-09-18 的记录时，该记录就会落在分区 ID 为 202009 的分区中；如果是 PARTITION BY JoinTime，那么 JoinTime 为 2020-09-18 的记录就会落在分区 ID 为 20200918 的分区中；再比如 PARTITION BY age，当写入一条 age 为 16 的记录时，该数据就会落在分区 ID 为 16 的分区中；再比如 PARTITION BY length(name)，那么 name 为 “古明地觉” 的记录就会落在分区 ID 为 4 的分区中， name 为 “雾雨魔理沙” 的记录就会落在分区 ID 为 5 的分区中。</strong></p>
+<p><strong>相信这个分区 ID 还是好理解的，但需要注意的是，如果分区字段有多个，那么会按照相同的规则为每个字段都生成一个分区 ID，最后再将这些分区 ID 使用减号合并起来，作为最终的分区 ID。</strong></p>
+<blockquote>
+<p><strong>比如：PARTITION BY (length(UserName), toYYYYMM(JoinTime))，那么 UserName 为 “张三”、JoinTime 为 2020-05-13 的记录就会落在分区 ID 为 2-202005 的分区中。</strong></p>
+</blockquote>
+<h3 id="分区目录的命名规则"><a href="#分区目录的命名规则" class="headerlink" title="分区目录的命名规则"></a>分区目录的命名规则</h3><p><strong>现在我们已经知道了分区 ID 生成规则，但如果进入数据表所在的磁盘目录时，会发现 MergeTree 分区目录的完整物理名称并不只有分区 ID，在 ID 的后面还跟着一串奇怪的数字，以我们之前创建的 user_activity_event 数据表为例，里面有一个分区，其名称就叫 202005_1_1_0。前面的 202005 显然就是分区 ID，那后面的部分代表啥含义呢？</strong></p>
+<p><strong>首先对于 MergeTree 而言，其最大的特点就是分区目录的合并动作（至于怎么合并我们后面再说），而合并逻辑我们从分区目录的名称便可窥知一二。</strong></p>
+<p><strong>首先分区目录的命名规则是：PartitionID_MinBlockNum_MaxBlockNum_Level</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121303260-1051906586.png" alt="img"></p>
+<p><strong>下面来解释一下这几个部分：</strong></p>
+<p><strong>1）PartitionID：分区 ID，这个应该无需多说。</strong></p>
+<p><strong>2）MinBlockNum、MaxBlockNum：最小数据块编号和最大数据块编号，这里的命名很容易让人联想到后面要说的数据压缩块，甚至产生混淆，但实际上这两者没有任何关系。这里的 BlockNum 是一个自增的整数，从 1 开始，每当创建一个新的分区时就会自增 1，并且对于一个新的分区目录而言，它的 MinBlockNum 和 MaxBlockNum 是相等的。比如 202005_1_1_0、202006_2_2_0、202007_3_3_0，以此类推。但是也有例外，当分区目录发生合并的时候，那么其 MinBlockNum 和 MaxBlockNum 会有另外的规则，一会儿细说。</strong></p>
+<p><strong>3）Level：合并的层级，可以理解为某个分区被合并的次数，这里的 Level 和 BlockNum 不同，它不是全局累加的。对于每个新创建的目录而言，其初始值都为 0，之后以分区为单位，如果相同分区发生合并动作，则该分区对应的 Level 加 1。可能有人不是很理解这里的 “相同分区发生合并” 到底是什么意思，我们下面就来介绍。</strong></p>
+<h3 id="分区目录的合并过程"><a href="#分区目录的合并过程" class="headerlink" title="分区目录的合并过程"></a>分区目录的合并过程</h3><p><strong>MergeTree 的分区目录和其它传统意义上数据库有所不同，首先 MergeTree 的分区目录并不是在数据表被创建之后就存在的，而是在数据写入的过程中被创建的，如果一张表中没有任何数据，那么也就不会有任何的分区目录。也很好理解，因为分区目录的命名与分区 ID 有关，而分区 ID 又和分区键对应的值有关，而表中连数据都没有，那么何来分区目录呢。</strong></p>
+<p><strong>其次，MergeTree 的分区目录也不是一成不变的，在其它数据库的设计中，追加数据的时候目录自身不会改变，只是在相同分区中追加数据文件。而 MergeTree 完全不同，伴随着每一次数据的写入，MergeTree 都会生成一批新的分区目录，即使不同批次写入的数据属于相同的分区，也会生成不同的分区目录。也就是说对于同一个分区而言，会存在对应多个分区目录的情况。而在之后的某个时刻（一般 10 到 15 分钟），ClickHouse 会通过后台任务将属于相同分区的多个目录合并（Merge）成一个新的目录，当然也可以通过 optimize TABLE table_name FINAL 语句立即合并，至于合并之前的旧目录会在之后的某个时刻（默认 8 分钟）被删除。</strong></p>
+<p><strong>属于同一个分区的多个目录，在合并之后会生成一个全新的目录，目录中的索引和数据文件也会相应地进行合并。而新目录的名称的生成方式遵循如下规则：</strong></p>
+<ul>
+<li><code>PartitionID：不变</code></li>
+<li><code>MinBlockNum：取同一分区内所有目录中最小的 MinBlockNum</code></li>
+<li><code>MaxBlockNum：取同一分区内所有目录中最大的 MaxBlockNum</code></li>
+<li><code>Level：取同一分区内最大 Level 值并加 1</code></li>
+</ul>
+<p><strong>我们举例说明一下，假设我们之前的 user_activity_event 表是空的，然后我们往里面分 3 批写入 3 条数据：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> user_activity_event <span class="keyword">VALUES</span> (<span class="number">1</span>, <span class="string">&#x27;张三&#x27;</span>, <span class="string">&#x27;寻找遗失的时间&#x27;</span>, <span class="string">&#x27;市场营销&#x27;</span>, <span class="string">&#x27;Medium&#x27;</span>, <span class="number">1</span>, <span class="string">&#x27;2020-05-01&#x27;</span>);</span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> user_activity_event <span class="keyword">VALUES</span> (<span class="number">1</span>, <span class="string">&#x27;李四&#x27;</span>, <span class="string">&#x27;寻找遗失的时间&#x27;</span>, <span class="string">&#x27;市场营销&#x27;</span>, <span class="string">&#x27;Medium&#x27;</span>, <span class="number">0</span>, <span class="string">&#x27;2020-05-02&#x27;</span>);</span><br><span class="line"><span class="keyword">INSERT</span> <span class="keyword">INTO</span> user_activity_event <span class="keyword">VALUES</span> (<span class="number">1</span>, <span class="string">&#x27;王五&#x27;</span>, <span class="string">&#x27;寻找遗失的时间&#x27;</span>, <span class="string">&#x27;市场营销&#x27;</span>, <span class="string">&#x27;Medium&#x27;</span>, <span class="number">1</span>, <span class="string">&#x27;2020-06-01&#x27;</span>);</span><br></pre></td></tr></table></figure>
+
+<p><strong>根据规则，ClickHouse 会创建 3 个分区目录，分区目录的 PartitionID 部分依次为 202005、202005、202006；而对于每个新创建的分区目录而言，它们的 MinBlockNum 和 MaxBlockNum 都是相等的，并且我们说 MinBlockNum 和 MaxBlockNum 是全局的，从 1 开始自增，所以三个分区目录的 MinBlockNum 和 MaxBlockNum 依次是 1 1、2 2、3 3；最后是 Level，每个新建的分区目录的初始 Level 都是0。因此三个分区目录的最终名称就是 202005_1_1_0、202005_2_2_0、202006_3_3_0。</strong></p>
+<p><strong>之后在某一时刻 MergeTree 的合并动作开始了，那么属于同一分区的 202005_1_1_0、202005_2_2_0 将会发生合并，得到 202005_1_2_1（MinBlockNum 取最小值、MaxBlockNum 取最大值，Level 去最大值加 1）。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121347504-214244480.png" alt="img"></p>
+<p><strong>然后我们再插入三条数据（分 3 批写入），JoinTime 分别为 2020-05-03、2020-06-02、2020-07-01，那么会再创建 3 个分区目录，分区 ID 分别为 202005、202006、202007：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121401101-615381315.png" alt="img"></p>
+<p><strong>之后 MergeTree 的合并动作开始，属于相同分区的目录开始合并，202005_1_2_1 和 202005_4_4_0 会发生合并，得到 202005_1_4_2；202006_3_3_0 和 202006_5_5_0 发生合并，得到 202006_3_5_1。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121413700-789754349.png" alt="img"></p>
+<p><strong>如果再写入数据的话，那么 MergeTree 依旧会发生合并，然后重复和上面的一样的动作。相信到这里已经明白分区 ID、目录命名、以及数据合并的相关规则。</strong></p>
+<p><strong>但需要注意的是：我们上面显示的是目录合并之后的结果，至于旧的分区目录、也就是合并之前的目录会依旧保留一段时间，但已不再是激活状态（active &#x3D; 0），在数据查询的时候会被过滤掉。然后 ClickHouse 有一个后台任务会定时扫描（默认 8 分钟），负责将 active &#x3D; 0 的目录从物理磁盘上删除。</strong></p>
+<h2 id="一级索引"><a href="#一级索引" class="headerlink" title="一级索引"></a>一级索引</h2><p><strong>MergeTree 的主键使用 PRIMARY KEY 定义，主键定义之后，MergeTree 会依据 index_granularity 间隔（默认 8192 行）为数据表生成一级索引并保存至 primary.idx 文件中，并按照主键进行排序。如果不指定 PAIMARY KEY，那么主键默认和排序键相同，在这种情况下，索引（primary.idx）和数据（data.bin）会按照完全相同的规则排序。</strong></p>
+<blockquote>
+<p><strong>使用 PRIMARY KEY 定义主键和使用 ORDER BY 代替定义主键，两者之间还是有点差别的，这个差别会在 SummingMergeTree 中有所体现，后续介绍 。</strong></p>
+</blockquote>
+<h3 id="稀疏索引"><a href="#稀疏索引" class="headerlink" title="稀疏索引"></a>稀疏索引</h3><p><strong>primary.idx 文件内的一级索引采用稀疏索引实现，既然有稀疏索引，那么是不是也有稠密索引呢？答案是还真有，稀疏索引和稠密索引之间的区别如下：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121423507-1319491738.png" alt="img"></p>
+<p><strong>从图中可以看到，在稠密索引中每一行数据都会对应一行唯一的索引；而在稀疏索引中只有部分数据会对应索引，也就是相邻索引对应的数据不相邻，中间会跨越一定行数的数据。那么问题来了，稀疏索引是如何准确定位数据的呢？</strong></p>
+<p><strong>假设我要找第 10000 条数据，那么首先 ClickHouse 会进行一次二分查找，找到对应的索引。因为 0 -&gt; 0、1 -&gt; 8192、2 -&gt; 16384，而第 10000 条数据位于 8192 和 16384 之间，那么要找的索引就是 1，于是 ClickHouse 会再通过索引 1 找到第 8192 行数据，然后不断往后遍历，最终找到我们要数据。如果熟悉 kafka 的话，kafka 底层存储消息也是用到的稀疏索引，还是很好理解的。但是问题来了，为什么不用稠密索引呢？如果使用稠密索引的话，那么直接就可以定位到准确的数据，从而减少后续遍历所带来的磁盘 IO，可为什么不这么做呢。其实原因很简单，ClickHouse、kafka 都是应用在大数据场景下，由于数据量本身就很大，那么使用稠密索引带来的空间占用也会很大。而稀疏索引占空间小，因为不需要那么多行，以默认的索引粒度（8192）为例，MergeTree 只需要 12208 行索引标记就能为 1 亿行数据记录提供索引。虽然后续遍历会带来额外的磁盘 IO，但由于是顺序 IO，因此效率实际上是不低的，我们知道机械磁盘虽然不擅长随机读写，但顺序读写还是很快的，SSD 就更不必说了。</strong></p>
+<p><strong>最关键的是，由于稀疏索引占用空间小，那么可以常驻内存，因此读取的速度非常快。如果使用稠密索引，那么由于空间占用过大而可能导致无法读进内存中，因此只能在磁盘上操作，这样在查找索引的时候也会带来磁盘 IO。因此综上所述，使用稀疏索引的性价比相较于稠密索引明显要更高，因为速度相差不大，但省下了大量的磁盘空间。</strong></p>
+<blockquote>
+<p><strong>注意：虽然我们说索引和数据之间是对应的，但我们知道它们不是直接对应的，我们之前介绍数据表的存储结构时说过，除了索引文件（primary.idx）和数据文件（data.bin）之外，还有一个标记文件（data.mrk）。标记文件中保存了 data.bin 文件中数据的偏移量信息，并且标记文件（或者说偏移量）与稀疏索引对齐，因此想要通过索引找到具体的数据还需要借助于 data.mrk 中偏移量。</strong></p>
+</blockquote>
+<h3 id="索引粒度"><a href="#索引粒度" class="headerlink" title="索引粒度"></a>索引粒度</h3><p><strong>索引粒度是建表的时候，在 SETTINGS 里面指定 index_granularity 控制的，虽然 ClickHouse 提供了自适应粒度大小的特性，但是为了便于理解，我们会使用固定的索引粒度进行介绍（8192）。索引粒度对于 MergeTree 而言是一个非常重要的概念，它就如同一把标尺，会丈量整个数据的长度，并依照刻度对数据进行标注，最终将数据标记成多个间隔的小段。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121431115-1300566604.png" alt="img"></p>
+<p><strong>数据以 index_granularity 的粒度（默认 8192）被标记成多个小的区间，其中每个区间最多 8192 行数据，MergeTree 使用 MarkRange 表示一个具体的区间，并通过 start 和 end 表示其具体的范围。index_granularity 的名字虽然取了索引二字，但它不单单只作用于一级索引，同时还会影响数据标记文件（data.mrk）和数据文件（data.bin）。因为只有一级索引是无法完成查询工作的，它需要借助标记文件中的偏移量才能定位数据，所以一级索引和数据标记的间隔粒度（同为 index_granularity 行）相同，彼此对齐，而数据文件也会按照 index_granularity 的间隔粒度生成压缩数据块。</strong></p>
+<h3 id="索引数据的生成规则"><a href="#索引数据的生成规则" class="headerlink" title="索引数据的生成规则"></a>索引数据的生成规则</h3><p><strong>由于是稀疏索引，所以 MergeTree 需要间隔 index_granularity 行数据才会生成一条索引记录，其索引值会依据声明的主键字段获取。这里我们创建一张表：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> hits_v1 (</span><br><span class="line">    CounterID Int64,</span><br><span class="line">    EventDate <span class="type">Date</span></span><br><span class="line">) ENGINE <span class="operator">=</span> MergeTree()</span><br><span class="line"><span class="keyword">PRIMARY</span> KEY CounterID  <span class="comment">-- 也可以不写，默认和排序键保持一致</span></span><br><span class="line"><span class="keyword">ORDER</span> <span class="keyword">BY</span> CounterID</span><br><span class="line"><span class="keyword">PARTITION</span> <span class="keyword">BY</span> toYYYYMM(EventDate)</span><br></pre></td></tr></table></figure>
+
+<p><strong>显然 EventDate 为 2020 年 4 月的数据会被划分到同一个分区目录中，并且每隔 8192 条数据就会取一次 CounterID 的值（排好序的）作为索引值，写入 primary.idx 文件进行保存。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121445103-847797721.png" alt="img"></p>
+<p><strong>例如第 0 行（8192 * 0）的 CounterID 取值为 57，第 8192 行（8192 * 1）的 CounterID 取值为 1635，第 16384 行（8192 * 2）的 CounterID 取值为 3266，最终索引数据将会是 5716353266……。</strong></p>
+<p><strong>可以看到 MergeTree 对于稀疏索引的存储是非常紧凑的，索引值前后相连，按照主键字段顺序紧密地排列在一起。并且不仅是这里，ClickHouse 中很多数据结构都被设计的非常紧凑，比如使用位读取替代专门的标志位或状态码（假设 32 位整型存储的数据最多占用 20 个位，那么就可以只用 20 个位表示数据，然后剩余的位用来表示状态码），不浪费任何一个字节。所以 ClickHouse 性能出众不是没有原因的，每一步都做足了优化。</strong></p>
+<p><strong>如果使用多个主键，例如 ORDER BY (CounterID, EventDate)，则每间隔 8192 行会同时取 CounterID 和 EventDate 两列的值作为索引值。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121453878-978279006.png" alt="img"></p>
+<h3 id="索引的查询过程"><a href="#索引的查询过程" class="headerlink" title="索引的查询过程"></a>索引的查询过程</h3><p><strong>在说完索引的一些概念之后，接下来说明索引具体是如何工作的。首先我们需要了解什么是 MarkRange，MarkRange 在 ClickHouse 中是用于定义标记区间的对象。MergeTree 按照 index_granularity 的间隔粒度，将一段完整的数据划分成了多个小的间隔数据段，一个具体的数据段就是一个 MarkRange，并与索引编号对应，使用start 和 end 两个属性表示其范围。通过 start 和 end 对应的索引编号的取值，即可得到它所对应的数值区间，而数值区别表示了此 MarkRange 的数据范围。</strong></p>
+<p><strong>如果只是这么干巴巴的介绍，可能会有些抽象，下面用一份示例数据来说明一下。假如现在有一份测试数据，共 192 行记录，其中主键 ID 为 String 类型，取值从 A000 开始，后面依次为 A001、A002、……，直到 A192 为止。MergeTree 的索引粒度 index_granularity 为 3，根据索引的生成规则，那么 primary.idx 文件的索引如下所示：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121503704-1600149797.png" alt="img"></p>
+<p><strong>根据索引数据，MergeTree 会将此数据片段划分成 192&#x2F;3&#x3D;64 个小的 MarkRange，两个相邻的 MarkRange 相距的步长为 1。其中，所有 MarkRange（整个数据片段）的最大数值区间为 [A000, +inf)，完整示意图如下：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121512266-468243103.png" alt="img"></p>
+<p><strong>在引入了数值区间的概念之后，对于索引数据的查询过程就很好解释了，索引查询其实就是两个区间的交集判断。其中一个区间是由基于主键的查询条件转换而来的条件区间；另一个区间就是上面说的与 MarkRange 对应的数值区间。</strong></p>
+<p><strong>所以整个查询可以分为三步：</strong></p>
+<p><strong>1）生成查询区间：首先将查询条件转换为区间，即使是单个值也会转换为区间的形式，举个栗子：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">WHERE</span> ID <span class="operator">=</span> <span class="string">&#x27;A003&#x27;</span> <span class="operator">-</span><span class="operator">&gt;</span> [<span class="string">&#x27;A003&#x27;</span>, <span class="string">&#x27;A003&#x27;</span>]</span><br><span class="line"></span><br><span class="line"><span class="keyword">WHERE</span> ID <span class="operator">&gt;</span> <span class="string">&#x27;A012&#x27;</span> <span class="operator">-</span><span class="operator">&gt;</span> (<span class="string">&#x27;A012&#x27;</span>, <span class="operator">+</span>inf]</span><br><span class="line"></span><br><span class="line"><span class="keyword">WHERE</span> ID <span class="operator">&lt;</span> <span class="string">&#x27;A185&#x27;</span> <span class="operator">-</span><span class="operator">&gt;</span> [<span class="operator">-</span>inf, <span class="string">&#x27;A185&#x27;</span>)</span><br><span class="line">                      </span><br><span class="line"><span class="keyword">WHERE</span> ID <span class="keyword">LIKE</span> <span class="string">&#x27;A006%&#x27;</span> <span class="operator">-</span><span class="operator">&gt;</span> [<span class="string">&#x27;A006&#x27;</span>, <span class="string">&#x27;A007&#x27;</span>)</span><br></pre></td></tr></table></figure>
+
+<p><strong>2）递归交集判断：以递归的形式，依次对 MarkRange 的数值区间与条件区间做交集判断，从最大的区间 [A000, +inf) 开始：</strong></p>
+<ul>
+<li><code>如果不存在交集，则直接通过剪枝算法优化此整段 MarkRange</code></li>
+<li><code>如果存在交集，且 MarkRange 步长大于等于 8（end - start），则将此区间进一步拆分成 8 个子区间（由 merge_tree_coarse_index_granularity 指定，默认值为 8），然后重复此过程，继续做递归交集判断</code></li>
+<li><code>如果存在交集，且 MarkRange 不可再分解（步长小于 8），则记录 MarkRange 并返回</code></li>
+</ul>
+<p><strong>3）合并 MarkRange 区间：将最终匹配的 MarkRange 聚在一起，合并它们的范围。</strong></p>
+<p><strong>光说不好理解，我们画一张图，来展示一下上面的几个步骤，还以上面的测试数据为例，查询条件为 ID &#x3D; ‘A003’。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121523250-1848437617.png" alt="img"></p>
+<p><strong>MergeTree 通过递归的形式持续向下拆分区间，最终将 MarkRange 定位到最细的粒度，以便在后续读取数据的时候，能够最小化数据的扫描范围。以上图为例，当查询条件为 ID &#x3D; ‘A003’ 的时候，最终只需要读取 [A000, A003] 和 [A003, A006] 两个区间的数据，它们对应 MarkRange(start:0, end:2) 范围，而其它无用区间都被裁剪掉了。由于 MarkRange 转换的数值区间是闭区间，所以会额外匹配到临近的一个区间。</strong></p>
+<h2 id="二级索引"><a href="#二级索引" class="headerlink" title="二级索引"></a>二级索引</h2><p><strong>除了一级索引之外，MergeTree 同样支持二级索引，二级索引又称跳数索引，由数据的聚合信息构建而成。根据索引类型的不同，其聚合信息的内容也不同，当然跳数索引的作用和一级索引是一样的，也是为了查询时减少数据的扫描范围。</strong></p>
+<p><strong>跳数索引需要在 CREATE 语句内定义，它支持使用元组和表达式的形式声明，其完整的定义语法如下所示：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> table_name (</span><br><span class="line">    column1 type,</span><br><span class="line">    column2 type,</span><br><span class="line">    ......</span><br><span class="line">    INDEX index_name expr TYPE index_type(...) GRANULARITY granularity</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><strong>与一级索引一样，如果在建表语句中声明了跳数索引，则会额外生成相应的索引文件和标记文件（skp_idx_[Column].idx 与 skp_idx_[Column].idx）。</strong></p>
+<h3 id="granularity-和-index-granularity-的关系"><a href="#granularity-和-index-granularity-的关系" class="headerlink" title="granularity 和 index_granularity 的关系"></a>granularity 和 index_granularity 的关系</h3><p><strong>不同的跳数索引之间，除了它们自身独有的参数之外，还都共同拥有 granularity 参数。初次接触时，很容易将 granularity 和 index_granularity 的概念弄混淆，对于跳数索引而言，index_granularity 定义了数据的粒度，而 granularity 定义了聚合信息汇总的粒度。换言之，granularity 定义了一行跳数索引能够跳过多少个 index_granularity 区间的数据。</strong></p>
+<p><strong>要解释清除 granularity 的作用，就要成跳数索引的生成规则说起，其规则大致是如下：首先按照 index_granularity 粒度间隔将数据划分成 n 段，总共有 [0, n - 1] 个区间（n &#x3D; totol_rows &#x2F; index_granularity，向上取整）；接着根据索引定义时声明的表达式，从 0 区间开始依次按照 index_granularity 粒度从数据中获取聚合信息，每次向前移动一步，聚合信息聚合信息逐步累加。最后当移动 granularity 次区间时，则汇总并声称一行跳数索引数据。</strong></p>
+<p><strong>以 minmax 索引为例，它的聚合信息是在一个 index_granularity 区间内数据的最小和最大极值。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121530948-1802107303.png" alt="img"></p>
+<p><strong>以上图为例，假设 index_granularity &#x3D; 8192 且 granularity &#x3D; 3，则数据会按照 index_granularity 划分为 n 等份，MergeTree 从第 0 段分区开始，依次获取聚合信息。当获取到第 3 个分区时（granularity &#x3D; 3），则会汇总并生成第一行 minmax 索引（前 3 段 minmax 极值汇总后取值为 [1, 9]）。</strong></p>
+<h3 id="跳数索引的类型"><a href="#跳数索引的类型" class="headerlink" title="跳数索引的类型"></a>跳数索引的类型</h3><p><strong>目前 MergeTree 共支持 4 种跳数索引，分别是：minmax、set、ngrambf_v1 和 tokenbf_v1，一张数据表支持同时声明多个跳数索引，比如：</strong></p>
+<figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">CREATE</span> <span class="keyword">TABLE</span> skip_test</span><br><span class="line">(</span><br><span class="line">    ID        String,</span><br><span class="line">    URL       String,</span><br><span class="line">    Code      String,</span><br><span class="line">    EventTime <span class="type">Date</span>,</span><br><span class="line">    INDEX a ID TYPE minmax GRANULARITY <span class="number">5</span>,</span><br><span class="line">    INDEX b (length(ID) <span class="operator">*</span> <span class="number">8</span>) TYPE <span class="keyword">set</span>(<span class="number">100</span>) GRANULARITY <span class="number">5</span>,</span><br><span class="line">    INDEX c (ID, Code) TYPE ngrambf_v1(<span class="number">3</span>, <span class="number">256</span>, <span class="number">2</span>, <span class="number">0</span>) GRANULARITY <span class="number">5</span>,</span><br><span class="line">    INDEX d ID TYPE tokenbf_v1(<span class="number">256</span>, <span class="number">2</span>, <span class="number">0</span>) GRANULARITY <span class="number">5</span></span><br><span class="line">) ENGINE <span class="operator">=</span> MergeTree()............</span><br></pre></td></tr></table></figure>
+
+<p><strong>接下来就借助上面的栗子来介绍这几种跳数索引的用法：</strong></p>
+<p><strong>1）minmax：minmax 索引记录了一段数据内的最小值和最大值，其索引的作用类似分区目录的 minmax 索引，能够快速跳过无用的数据区间。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">INDEX a ID TYPE minmax GRANULARITY 5</span><br></pre></td></tr></table></figure>
+
+<p><strong>上述示例中 minmax 索引会记录这段数据区间内 ID 字段的极值，极值的计算涉及每 5 个 index_granularity 区间中的数据。</strong></p>
+<p><strong>2）set：set 索引直接记录了声明字段或表达式的取值（唯一值，无重复），其完整形式为 set(max_rows)，其中 max_rows 是一个阈值，表示在一个 index_granularity 内索引最多记录的数据行数。如果 max_rows &#x3D; 0，则表示无限制。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">INDEX b (length(ID) * 8) TYPE set(100) GRANULARITY 5</span><br></pre></td></tr></table></figure>
+
+<p><strong>上述实例中 set 索引会记录数据中 ID 的长度 * 8 后的取值，其中 index_granularity 内最多记录 100 条。</strong></p>
+<p><strong>3）ngrambf_v1：ngrambf_v1 索引记录的是数据短语的布隆表过滤器，只支持 String 和 FixedString 数据类型。ngrambf_v1 只能够提升 in、notIn、like、equals 和 notEquals 查询的性能，其完整形式为：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ngrambf_v1(n, size_of_bloom_filter_in_bytes, number_of_hash_functions, random_seed)</span><br></pre></td></tr></table></figure>
+
+<p><strong>这些参数是一个布隆过滤器的标准输入，如果你接触布隆过滤器，应该对此十分熟悉，它们的具体含义如下：</strong></p>
+<ul>
+<li><code>n：token 长度，依据 n 的长度将数据切割为 token 短语</code></li>
+<li><code>size_of_bloom_filter_in_bytes：布隆过滤器的大小</code></li>
+<li><code>number_of_hash_functions：布隆过滤器中使用 Hash 函数的个数</code></li>
+<li><code>random_seed：Hash 函数的随机种子</code></li>
+</ul>
+<p><strong>例如在下面的栗子中，ngrambf_v1 索引会依照 3 的粒度将数据切割成短语 token，token 会经过 2 个 Hash 函数映射之后再被写入，布隆过滤器大小为 256 字节。</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">INDEX c (ID, Code) TYPE ngrambf_v1(3, 256, 2, 0) GRANULARITY 5</span><br></pre></td></tr></table></figure>
+
+<p><strong>4）tokenbf_v1：tokenbf_v1 索引是 ngrambf_v1 的变种，同样也是一种布隆过滤器索引，但 tokenbf_v1 除了短语 token 的处理方法外，其它与 ngrambf_v1 是完全一样的。tokenbf_v1 会自动按照非字符的、数字的字符串分割 token，具体用法如下所示：</strong></p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">INDEX d ID TYPE tokenbf_v1(256, 2, 0) GRANULARITY 5</span><br></pre></td></tr></table></figure>
+
+<h2 id="数据存储"><a href="#数据存储" class="headerlink" title="数据存储"></a>数据存储</h2><p><strong>此前已经多次提过，在 MergeTree 中数据是按列存储的，但具体细节到底如何我们还不清楚，那么下面就来解释一下。因为数据存储就好比一本书中的文字，在排版时不可能直接密密麻麻地把文字堆满，这样会导致难以阅读，正确的做法是将文字按照段落精心组织使其错落有致。数据存储也是同样的到底，数据也需要精心组织之后也存储到磁盘。</strong></p>
+<h3 id="数据按列存储"><a href="#数据按列存储" class="headerlink" title="数据按列存储"></a>数据按列存储</h3><p><strong>在 MergeTree 中数据按列存储，在老版本中每个列也是独立存储的，也就是每个列字段都拥有一个与之对应的 .bin 文件；但是在新版本中这些列字段对应的 .bin 文件合并在一起了，只有一个 data.bin。正是 data.bin 文件，最终承载着物理存储。那么按列存储有什么好处呢？首先可以更好的进行数据压缩，因为相同类型的数据放在一起，对压缩更加友好；其实是能够最小化数据扫描的范围。</strong></p>
+<p><strong>而对应到存储的具体实现方面，MergeTree 也并不是一股脑地将数据直接写入 data.bin 文件，而是经过了一番精心设计：首先数据是经过压缩的，目前支持 LZ4、ZSTD、Multiple 和 Delta 几种算法，默认使用 LZ4 算法；其次，数据会实现按照 ORDER BY 的声明排序；最后数据以压缩数据块的形式被组织并写入 data.bin 文件。</strong></p>
+<p><strong>压缩数据块就好比一本书的文件段落，是组织文字的基本单元，这个概念非常重要，需要深入说明一下。</strong></p>
+<h3 id="压缩数据块"><a href="#压缩数据块" class="headerlink" title="压缩数据块"></a>压缩数据块</h3><p><strong>一个压缩数据块由头信息和压缩数据两部分组成，头信息固定使用 9 位字节表示，具体由 1 个 UInt8（1 字节）和 2 个 UInt32（4 字节）组成，分别代表使用的压缩算法类型、压缩后的数据大小、压缩前的数据大小。所以虽然存储的是压缩后的数据，但是在头信息中将压缩前的数据大小也记录了下来。我们先创建一张表，然后写入一些数据测试一下。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121540506-1382470710.png" alt="img"></p>
+<p><strong>然后用 Python 写入写入 10 万条数据：</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> faker <span class="keyword">import</span> Faker</span><br><span class="line"><span class="keyword">from</span> clickhouse_driver <span class="keyword">import</span> Client</span><br><span class="line"></span><br><span class="line">f = Faker(<span class="string">&quot;ja_JP&quot;</span>)  <span class="comment"># 生成 1 万条测试数据，Age 均为 26</span></span><br><span class="line">data = [<span class="built_in">str</span>((<span class="string">f&quot;<span class="subst">&#123;i&#125;</span>&quot;</span>, f.name(), <span class="number">26</span>, f.address())) <span class="keyword">for</span> i <span class="keyword">in</span> <span class="built_in">range</span>(<span class="number">10000</span>)]</span><br><span class="line"></span><br><span class="line">sql = <span class="string">f&quot;INSERT INTO people VALUES <span class="subst">&#123;<span class="string">&#x27;, &#x27;</span>.join(data)&#125;</span>&quot;</span></span><br><span class="line">client = Client(host=<span class="string">&quot;47.94.174.89&quot;</span>, port=<span class="number">9000</span>)</span><br><span class="line">client.execute(sql)</span><br></pre></td></tr></table></figure>
+
+<p><strong>显然会创建一个分区，根据我们之前介绍的规则，分区对应的分区目录为 26_1_1_0。但是注意，这里要使用 1 个 INSERT 语句，否则的话数据会分多批导入，这样的就会创建多个分区目录：26_1_1_0、26_2_2_0、26_3_3_0，……。而我们要的是合并后的结果，虽然属于相同分区的分区目录之后会自动合并，但是需要等一段时间，因此这里我们就一批次直接导入。</strong></p>
+<p><strong>然后我们可以使用 clickhouse-compressor 查看数据大小：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121548304-1172775367.png" alt="img"></p>
+<p><strong>其中每一行代表一个数据压缩块的头信息，分别表示该压缩块中 “压缩前的数据大小” 和 “压缩后的数据大小”，并且我们看到总共有 4 个压缩数据块。为什么有 4 个，原因是我们只有 4 个列，所以 data.bin 里面存储的就是对 4 个列压缩之后的结果，这是显而易见的。像第一列就是 ID，由于我们的 ID 是顺序自增的，几乎没有什么重复，所以压缩之后和压缩之前的的大小差别不大；但是后面几列的数据压缩之后就小很多了，尤其是第三行 Age 字段，因为每个值都是一个 UInt8，1 万条数据所以占 10000 个字节，但由于所有值都是 26，数据全部一样，而数据越相似压缩比越高，因此压缩之后变成了 59 个字节。至于压缩背后的算法我们这里不细究了， 只需要知道数据之间越相似、或者说重复率越高，压缩之后的数据就越小。</strong></p>
+<p><strong>但是注意：我们这里的数据量比较少，每一列数据的大小不是很大，因此每一列只用一个压缩数据块即可存储。如果数据量再多一些，一个压缩数据块存储不下，那么就会对应多个压缩数据块。</strong></p>
+<figure class="highlight erlang"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">Column1 压缩数据块<span class="number">0</span></span><br><span class="line">Column2 压缩数据块<span class="number">0</span></span><br><span class="line">Column3 压缩数据块<span class="number">0</span></span><br><span class="line">......</span><br><span class="line">ColumnN 压缩数据块<span class="number">0</span></span><br><span class="line"></span><br><span class="line">Column1 压缩数据块<span class="number">1</span></span><br><span class="line">Column2 压缩数据块<span class="number">1</span></span><br><span class="line">Column3 压缩数据块<span class="number">1</span></span><br><span class="line">......</span><br><span class="line">ColumnN 压缩数据块<span class="number">1</span></span><br><span class="line"></span><br><span class="line">Column1 压缩数据块<span class="number">2</span></span><br><span class="line">Column2 压缩数据块<span class="number">2</span></span><br><span class="line">Column3 压缩数据块<span class="number">2</span></span><br><span class="line">......</span><br><span class="line">ColumnN 压缩数据块<span class="number">2</span></span><br><span class="line"></span><br><span class="line">Column1 压缩数据块<span class="number">3</span></span><br><span class="line">Column2 压缩数据块<span class="number">3</span></span><br><span class="line">Column3 压缩数据块<span class="number">3</span></span><br><span class="line">......</span><br></pre></td></tr></table></figure>
+
+<p><strong>示意图如下：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121555649-1327243137.png" alt="img"></p>
+<p><strong>其中每一行数据都代表者一个压缩数据块的头信息，其分别表示该压缩块中未压缩数据和压缩数据的大小，注意：打印信息和物理存储的顺序刚好相反。</strong></p>
+<p><strong>但是我们需要注意，之前我们说在早期的 ClickHouse 中每一列数据各自对应一个 .bin 文件，但是在新版本的时候合并在一起了，这是没错的，但前提是数据量不大。如果数据量大到一定程度，那么每一列的数据就会分开存储了，也就是各自对应一个 .bin 文件和一个 .mrk 文件，和 data.bin、data.mrk 的作用是完全等价的， 只不过一个是各列分开存储、一个是所有列合并在一起存储。</strong></p>
+<p><strong>我们再执行一次上面的 Python 代码，但是将生成的数据改成 10 万条：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121602882-2030388856.png" alt="img"></p>
+<p><strong>显然此时会创建一个 26_2_2_0 分区目录，里面就没有 data.bin 了，取而代之的时候 ID.bin、Name.bin、Age.bin、Place.bin，同理 .mrk 文件也是如此。当然除了 .mrk 之外还有一个 .mrk2，它和 .mrk3 作用相似，当使用了自适应大小的索引间隔，会出现此标记文件。</strong></p>
+<p><strong>然后我们再来对每一个列对应的 .bin 文件查看一下大小：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121611426-1900498698.png" alt="img"></p>
+<p><strong>如果每一列都对应单独的 .bin 文件的话，那么每一列都有自己的压缩数据块：块 0、块1、块2、……、块 n，这和 data.bin 原理相同，只不过 data.bin 在数据量没达到阈值的时候会将所有列对应的压缩数据块存储在一起：列 1 块 0、列 2 块 0、….、列 N 块 0、列 1 块 1、列 2 块 1、……、列 N 块 1、列 1 块 2、列 2 块 2、……、列 N 块 2、列 1 块 3、…….。</strong></p>
+<p><strong>并且此时每个压缩数据块的大小，都被严格控制在 64KB 到 1MB 之间，其上下限分别由 min_compress_block_size（默认 65536）和 min_compress_block_size（默认值为 1048576）决定。比如 Age.bin，因为 10 万条数据所以 10 万个字节，第一个压缩数据块的大小就是 65536 字节，被压缩成了 276 字节，至于剩余的 34464 字节是因为只剩下这么多了，然后被压缩成了 155 字节。至于其它的列也是同理，只不过列不相同，所以压缩数据块的最终大小也不相同。</strong></p>
+<p><strong>那么压缩数据块的大小是怎么计算出来的呢？首先压缩数据块的最终大小是和索引粒度（index_granularity）相关的，MergeTree 在具体的数据写入过程中，会依照索引粒度按批次获取数据并写入（由于索引粒度默认是 8192，所以每批次会获取 8192 行）。如果把一批未压缩的数据的大小设为 size，则整个数据的写入过程遵循如下规则：</strong></p>
+<ul>
+<li><strong>1）单个批次数据 size &lt; 64KB：如果单个批次数据小于 64KB，则继续获取下一批数据，直至累积到 size 大于等于 64KB 时，生成下一个压缩数据块。</strong></li>
+<li><strong>2）单个批次数据 64KB &lt;&#x3D; size &lt;&#x3D; 1MB：如果单个批次数据在 64KB 到 1MB 之间，则直接生成下一个压缩数据块。</strong></li>
+<li><strong>3）单个批次数据 size &gt; 1MB：如果单个批次数据直接超过 1MB，则首先按照 1MB 大小截断并生成下一个压缩数据块，然后剩余数据继续依照上述规则执行。因此，此时会出现一批次数据生成多个压缩数据块的情况。</strong></li>
+</ul>
+<p><strong>因此说白了就是 MergeTree 在获取数据的时候会依照索引粒度按批次获取数据，所以默认情况下就是每批获取 8192 行，然后一批一批获取。而如果设当前批次的数据大小为 size，那么会根据 size 的不同，走上面三个分支中的一个。我们以 Age.bin 为例，每批取 8912 行显然就是 8192 个字节，也就是 8 KB，小于 64 KB，因此会读取下一批。而当读到第 8 批时，发现数据加起来达到了 64 KB，因此生成一个压缩数据块，此时还剩下 34464（100000 减去 8 * 8192）、不到 34 KB，因此剩余的部分直接作为一个压缩数据块；当然其它列也很好分析，和 Age 是类似的，只不过 Age 最简单，每个值占 1 字节。而其它列因为存储的内容大小不固定（有的长有的短），所以不是很好计算，但存储的逻辑是不变的。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121621814-262052550.png" alt="img"></p>
+<p><strong>因此一个 .bin 文件是由 1 到多个压缩数据块组成的，每个压缩块的大小是 64KB ~ 1MB 之间，多个数据压缩块之间按照写入顺序首尾相接，紧密地排在一起。</strong></p>
+<p><strong>而在 .bin 文件中引入压缩数据块的目的有两个：</strong></p>
+<ul>
+<li><code>1. 虽然数据被压缩后能够有效减少数据大小，降低存储空间并加速传输效率，但数据的压缩和解压缩本身是会带来额外消耗的。所以要控制被压缩数据的大小，以便在性能损耗和压缩率之间寻求一种平衡</code></li>
+<li><code>2. 在具体读取某一列数据时（.bin 文件），首先需要将压缩数据加载到内存中并解压，这样才能进行后续的数据处理。而通过数据压缩块，可以在不读取整个 .bin 文件的情况下将读取粒度降低到压缩数据块级别，从而进一步缩小数据读取范围</code></li>
+</ul>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121629063-1970946671.png" alt="img"></p>
+<p><strong>所以压缩数据块是重点，每一次都是按块写入、同时也会按块读取。另外当数据量没有超过阈值的时候，所有的列会放在一起存储（data.bin），数据量超过阈值、那么每一列会单独存储。</strong></p>
+<h2 id="数据标记文件（-mrk）"><a href="#数据标记文件（-mrk）" class="headerlink" title="数据标记文件（.mrk）"></a>数据标记文件（.mrk）</h2><p><strong>如果把 MergeTree 比作一本书，primary.idx（一级索引）就类似书的一级章节目录，但是这个目录具体对应书中（ .bin 文件）的哪一页呢？</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121636786-372556394.png" alt="img"></p>
+<p><strong>显然每个目录后面的页码会告诉你，该目录位于书中的哪一页，而页码就相当于数据标记文件（.mrk）中记录的偏移量（数据标记），标记索引在数据文件中的具体位置。因此对于数据标记文件而言，它记录了两点关键信息：</strong></p>
+<ul>
+<li><code>1. 与一级章节目录对应的页码信息</code></li>
+<li><code>2. 一段文字在某一页中的起始位置信息</code></li>
+</ul>
+<p><strong>这样一来，通过数据标记文件可以很快地从一本书中立即翻到关注内容所在的那一页，并知道从第几行开始阅读。</strong></p>
+<h3 id="数据标记的生成规则"><a href="#数据标记的生成规则" class="headerlink" title="数据标记的生成规则"></a>数据标记的生成规则</h3><p><strong>数据标记作为衔接一级索引和数据的桥梁，像极了书签，而且书本总每一个章节目录都有各自的书签。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121645106-1424401301.png" alt="img"></p>
+<p><strong>从图中我们可以看到，数据标记和索引区间是对齐的，均按照 index_granularity 的粒度间隔，如此一来只需要简单通过索引下标编号即可直接找到对应的数据标记。并且为了能够与数据衔接，.bin 文件和数据标记文件是一一对应的，即每一个 [Column].bin 文件都有一个 [Column].mrk 数据标记文件与之对应，用于记录数据在 .bin 文件中的偏移量信息。</strong></p>
+<p><strong>一行标记数据使用一个元组表示，元组内包含两个整型数值的偏移量信息，分别表示在此段数据区间内：</strong></p>
+<ul>
+<li><code>1. 对应 .bin 压缩文件中，压缩数据块的起始偏移量</code></li>
+<li><code>2. 将该数据块解压缩后，未压缩数据的起始偏移量</code></li>
+</ul>
+<p><strong>我们以之前 Age.bin 为例：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121652461-11019192.png" alt="img"></p>
+<p><strong>每次按批读取 8192 行，因为一个 UInt 8 一字节，所以每次读取 8192 个字节，在读取 8 批之后会进行压缩得到一个压缩数据块。生成的第一个压缩数据块为 276 个字节，然后未压缩数据还剩下 34464 字节，小于 64KB，于是直接生成 155 字节的第二个压缩数据块。因此在 Age.bin 中两个偏移量的对应关系如下：</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121657840-402377603.png" alt="img"></p>
+<p><strong>每一行标记数据都标记了一个片段的数据（默认 8192 行）在 .bin 压缩文件中的读取位置信息，因为 Age 占 1 字节，所以每次读取 8912 行相当于每次读取 8192 个字节，因此 “未压缩数据的起始偏移量” 就是 0、8192、16384、24576、……。但是需要注意图中的 57344，它表示第 8 批未压缩数据的起始偏移量，因为此时已经达到了 64KB，所以会生成一个压缩数据块，于是接下来读取第 9 批未压缩数据的时候就会对应新的压缩数据块，因此起始偏移量会重置为 0，而不是 65536。</strong></p>
+<blockquote>
+<p><strong>我们这里是 Age 字段为例，至于其它列也是同理，只不过由于每一行字符串的长度不同，所以我们很难计算每次读 8192 行的话会读多少个字节，但它们的原理是很明显都是一样的。</strong></p>
+</blockquote>
+<p><strong>然后是 “压缩数据块的起始偏移量”，因为读了 8 批才生成了第一个压缩数据块，因此前 8 行都是 0。然后由于第一个压缩数据块的大小是 276，因此第 9 行、即索引为 8 的位置，存储的值就是 276，表示第二个压缩数据块的起始偏移量。</strong></p>
+<p><strong>以上就是标记文件的存储原理，但是标记文件和一级索引不同，它不能常驻内存，而是使用 LRU（最近最少使用）缓存淘汰策略加快其取用速度。</strong></p>
+<h3 id="数据标记的工作方式"><a href="#数据标记的工作方式" class="headerlink" title="数据标记的工作方式"></a>数据标记的工作方式</h3><p><strong>MergeTree 在读取数据时，必须通过标记文件中的偏移量才能找到所需要的数据，因此整个查找过程可以分为读取压缩数据块和读取数据两个步骤。为了便于解释，这里继续使用刚才的 people 表的 Age 字段进行说明，因为 Age 字段的大小固定，最好分析，至于其它字段的查找过程与之完全类似。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121710168-599041568.png" alt="img"></p>
+<p><strong>1）读取压缩数据块</strong></p>
+<p><strong>在查询某一列数据时，MergeTree 无需加载整个 .bin 文件，而是可以根据需要只加载特定的压缩数据块，而这项特性则要借助 .mrk 文件中所保存的偏移量信息。</strong></p>
+<p><strong>从图中可以看到，上下相邻的两个压缩数据块的起始偏移量，构成了与当前标记对应的压缩数据块的偏移量区间，说人话就是通过第 n 个压缩数据块的起始偏移量和第 n + 1 个压缩数据块的起始偏移量，可以获取第 n 个压缩数据块。具体做法就是从当前偏移量开始向下寻找（当前块的起始位置 start），直到找到不同的偏移量位置（当前块的下一个块的起始位置 next_start），此时 start 到 next_start 便是当前块对应的偏移量区间，比如图中的 0 到 276。通过偏移量区间，即可获得当前的压缩块。</strong></p>
+<p><strong>2）读取数据</strong></p>
+<p><strong>在读取解压后的数据时，MergeTree 并不需要一次性扫描整段解压数据，它可以根据需要，以 index_granularity 的粒度加载特定的一小段，而为了实现这种特性，需要借助标记文件中保存的解压数据块的偏移量。</strong></p>
+<p><strong>通过偏移量，ClickHouse 可以按需读取数据，比如通过 [0, 8192] 即可读取压缩数据块 0 中第一个数据片段对应的解压数据。</strong></p>
+<h2 id="分区、索引、标记和压缩数据的协同总结"><a href="#分区、索引、标记和压缩数据的协同总结" class="headerlink" title="分区、索引、标记和压缩数据的协同总结"></a>分区、索引、标记和压缩数据的协同总结</h2><p><strong>分区、索引、标记和压缩数据，就类似于 MergeTree 的一套组合拳，使用恰当的话威力无穷。那么在依次介绍了各自的特点之后，现在将它们聚在一起总结一下。</strong></p>
+<h3 id="写入过程"><a href="#写入过程" class="headerlink" title="写入过程"></a>写入过程</h3><p><strong>数据写入的第一步是生成分区目录，伴随着每一批数据的写入，都会生成一个新的分区目录。在后续的某一时刻，属于相同分区的分区目录会被合并到一起。紧接着按照 index_granularity 索引粒度，会分别生成 primary.idx 一级索引（如果声明了二级索引，还会创建二级索引文件）、每一个列字段的压缩数据文件（.bin）和数据标记文件（.mrk），如果数据量不大，则是 data.bin 和 data.mrk 文件。</strong></p>
+<p><strong>下面的示意图展示了 MergeTree 表在写入数据时，它的分区目录、索引、标记和压缩数据的生成。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121718621-4237534.png" alt="img"></p>
+<p><strong>从分区目录 202006_1_34_3 能够得知，该分区数据总共分 34 批写入，期间发生过 3 次合并。在数据写入的过程中，依据 index_granularity 的粒度，依次为每个区间的数据生成索引、标记和压缩数据块。其中索引和标记区间是对齐的，而标记与压缩块则是根据区间大小的不同，会生成多对一、一对一、一对多的关系。</strong></p>
+<h3 id="查询过程"><a href="#查询过程" class="headerlink" title="查询过程"></a>查询过程</h3><p><strong>数据查询的本质可以看做是一个不断减少数据范围的过程，在最理想的情况下，MergeTree 首先可以借助分区索引、一级索引和二级索引将数据扫描范围缩至最小。然后再借助数据标记，将需要解压与计算的数据范围缩至最小。以下图为例，该图展示了在最优的情况下，经过层层过滤，最终获取最小数据范围的过程。</strong></p>
+<p><img src="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/1229382-20210826121725662-2046737993.png" alt="img"></p>
+<p><strong>如果一条查询语句没有指定任何 WHERE 条件，或者指定了 WHERE 条件、但是没有匹配到任何的索引（分区索引、一级索引、二级索引），那么 MergeTree 就不能预先减少数据范围。在后续进行数据查询时，它会扫描所有分区目录，以及目录内索引段的最大区间。不过虽然不能减少数据范围，但 MergeTree 仍然能够借助数据标记，以多线程的形式同时读取多个压缩数据块，以提升性能。</strong></p>
+<h3 id="数据标记与压缩数据块的对应关系"><a href="#数据标记与压缩数据块的对应关系" class="headerlink" title="数据标记与压缩数据块的对应关系"></a>数据标记与压缩数据块的对应关系</h3><p><strong>由于压缩数据块的划分，与一个间隔（index_granularity）内的数据大小相关，每个压缩数据块的体积都被严格控制在 64KB ~ 1MB 之间，而一个间隔（index_granularity）的数据，又只会产生一行数据标记。那么根据一个间隔内数据的实际字节大小，数据标记和压缩数据块之间会产生三种不同的对应关系：</strong></p>
+<p><strong>1）多对一</strong></p>
+<p><strong>多个数据标记对应一个压缩数据块，当一个间隔（index_granularity）内数据的未压缩大小小于 64KB 时，会出现这种对应关系。</strong></p>
+<p><strong>2）一对一</strong></p>
+<p><strong>一个数据标记对应一个压缩数据块，当一个间隔（index_granularity）内数据的未压缩大小大于等于 64KB 并小于等于 1MB 时，会出现这种对应关系。</strong></p>
+<p><strong>3）一对多</strong></p>
+<p><strong>一个数据标记对应多个压缩数据块，当一个间隔（index_granularity）内数据的未压缩大小大于 1MB 时，会出现这种对应关系。</strong></p>
+<p><strong>以上就是 MergeTree 的工作原理，首先我们了解了 MergeTree 的基础属性和物理存储结构；接着，依次介绍了数据分区、一级索引、二级索引、数据存储和数据标记的重要特性；最后总结了 MergeTree 上述特性一起协同时工作过程。掌握了 MergeTree 即掌握了合并树系列表引擎的精髓，因为 MergeTree 本身也是一种表引擎。后面我们会介绍 MergeTree 家族中其它常见表引擎的使用方法，以及它们都有哪些特点、使用方式是什么</strong></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="https://hesay.cn">wenwen</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="https://hesay.cn/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/">https://hesay.cn/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="https://hesay.cn" target="_blank">热心市民温温</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/ClickHouse/">ClickHouse</a></div><div class="post_share"><div class="social-share" data-image="/img/favicon.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="prev-post pull-left"><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E5%85%B6%E5%AE%83%E5%B8%B8%E8%A7%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E(%E5%85%AB)/" title="ClickHouse 中其它常见的表引擎"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">上一篇</div><div class="prev_info">ClickHouse 中其它常见的表引擎</div></div></a></div><div class="next-post pull-right"><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E7%9A%84%E6%95%B0%E6%8D%AE%E6%9F%A5%E8%AF%A2%E4%BB%A5%E5%8F%8A%E5%90%84%E7%A7%8D%E5%AD%90%E5%8F%A5(%E4%B9%9D)/" title="ClickHouse 中的数据查询以及各种子句"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">ClickHouse 中的数据查询以及各种子句</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><div><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E5%85%B6%E5%AE%83%E5%B8%B8%E8%A7%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E(%E5%85%AB)/" title="ClickHouse 中其它常见的表引擎"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 中其它常见的表引擎</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E4%B8%AD%E7%9A%84%E6%95%B0%E6%8D%AE%E6%9F%A5%E8%AF%A2%E4%BB%A5%E5%8F%8A%E5%90%84%E7%A7%8D%E5%AD%90%E5%8F%A5(%E4%B9%9D)/" title="ClickHouse 中的数据查询以及各种子句"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 中的数据查询以及各种子句</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E4%B9%8B%20MergeTree%20%E5%AE%B6%E6%97%8F%E4%B8%AD%E7%9A%84%E5%85%B6%E5%AE%83%E8%A1%A8%E5%BC%95%E6%93%8E(%E4%B8%83)/" title="ClickHouse 之 MergeTree 家族中的其它表引擎"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 之 MergeTree 家族中的其它表引擎</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E5%85%B6%E5%AE%83%E7%9A%84%E4%B8%80%E4%BA%9B%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0%20(%E5%8D%81%E4%BA%94)/" title="ClickHouse 其它的一些操作函数"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 其它的一些操作函数</div></div></a></div><div><a href="/2023/03/01/ClickHouse%20%E6%95%B0%E6%8D%AE%E8%A1%A8%E7%9A%84%E5%A2%9E%E5%88%A0%E6%94%B9(%E4%BA%94)/" title="ClickHouse 数据表的增删改"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-03-01</div><div class="title">ClickHouse 数据表的增删改</div></div></a></div><div><a href="/2023/04/11/ClickHouse%20%E5%AD%97%E7%AC%A6%E4%B8%B2%E7%9A%84%E7%9B%B8%E5%85%B3%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0(%E5%8D%81%E4%BA%8C)/" title="ClickHouse 字符串的相关操作函数"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2023-04-11</div><div class="title">ClickHouse 字符串的相关操作函数</div></div></a></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src="/img/favicon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info__name">wenwen</div><div class="author-info__description"></div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">5</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/wenlinshan"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">码海无涯。。。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#ClickHouse-%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree-%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90"><span class="toc-number">1.</span> <span class="toc-text">ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%A5%94%E5%AD%90"><span class="toc-number">1.1.</span> <span class="toc-text">楔子</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#MergeTree-%E7%9A%84%E5%88%9B%E5%BB%BA%E6%96%B9%E5%BC%8F%E4%B8%8E%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84"><span class="toc-number">1.2.</span> <span class="toc-text">MergeTree 的创建方式与存储结构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#MergeTree-%E7%9A%84%E5%88%9B%E5%BB%BA%E6%96%B9%E5%BC%8F"><span class="toc-number">1.2.1.</span> <span class="toc-text">MergeTree 的创建方式</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#MergeTree-%E6%95%B0%E6%8D%AE%E8%A1%A8%E7%9A%84%E5%AD%98%E5%82%A8%E7%BB%93%E6%9E%84"><span class="toc-number">1.2.2.</span> <span class="toc-text">MergeTree 数据表的存储结构</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E5%88%86%E5%8C%BA"><span class="toc-number">1.3.</span> <span class="toc-text">数据分区</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E7%9A%84%E5%88%86%E5%8C%BA%E8%A7%84%E5%88%99"><span class="toc-number">1.3.1.</span> <span class="toc-text">数据的分区规则</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%86%E5%8C%BA%E7%9B%AE%E5%BD%95%E7%9A%84%E5%91%BD%E5%90%8D%E8%A7%84%E5%88%99"><span class="toc-number">1.3.2.</span> <span class="toc-text">分区目录的命名规则</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%86%E5%8C%BA%E7%9B%AE%E5%BD%95%E7%9A%84%E5%90%88%E5%B9%B6%E8%BF%87%E7%A8%8B"><span class="toc-number">1.3.3.</span> <span class="toc-text">分区目录的合并过程</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E7%BA%A7%E7%B4%A2%E5%BC%95"><span class="toc-number">1.4.</span> <span class="toc-text">一级索引</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%A8%80%E7%96%8F%E7%B4%A2%E5%BC%95"><span class="toc-number">1.4.1.</span> <span class="toc-text">稀疏索引</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%B4%A2%E5%BC%95%E7%B2%92%E5%BA%A6"><span class="toc-number">1.4.2.</span> <span class="toc-text">索引粒度</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%B4%A2%E5%BC%95%E6%95%B0%E6%8D%AE%E7%9A%84%E7%94%9F%E6%88%90%E8%A7%84%E5%88%99"><span class="toc-number">1.4.3.</span> <span class="toc-text">索引数据的生成规则</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E7%B4%A2%E5%BC%95%E7%9A%84%E6%9F%A5%E8%AF%A2%E8%BF%87%E7%A8%8B"><span class="toc-number">1.4.4.</span> <span class="toc-text">索引的查询过程</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E7%BA%A7%E7%B4%A2%E5%BC%95"><span class="toc-number">1.5.</span> <span class="toc-text">二级索引</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#granularity-%E5%92%8C-index-granularity-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">1.5.1.</span> <span class="toc-text">granularity 和 index_granularity 的关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B7%B3%E6%95%B0%E7%B4%A2%E5%BC%95%E7%9A%84%E7%B1%BB%E5%9E%8B"><span class="toc-number">1.5.2.</span> <span class="toc-text">跳数索引的类型</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E5%AD%98%E5%82%A8"><span class="toc-number">1.6.</span> <span class="toc-text">数据存储</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E6%8C%89%E5%88%97%E5%AD%98%E5%82%A8"><span class="toc-number">1.6.1.</span> <span class="toc-text">数据按列存储</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%8E%8B%E7%BC%A9%E6%95%B0%E6%8D%AE%E5%9D%97"><span class="toc-number">1.6.2.</span> <span class="toc-text">压缩数据块</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E6%A0%87%E8%AE%B0%E6%96%87%E4%BB%B6%EF%BC%88-mrk%EF%BC%89"><span class="toc-number">1.7.</span> <span class="toc-text">数据标记文件（.mrk）</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E6%A0%87%E8%AE%B0%E7%9A%84%E7%94%9F%E6%88%90%E8%A7%84%E5%88%99"><span class="toc-number">1.7.1.</span> <span class="toc-text">数据标记的生成规则</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E6%A0%87%E8%AE%B0%E7%9A%84%E5%B7%A5%E4%BD%9C%E6%96%B9%E5%BC%8F"><span class="toc-number">1.7.2.</span> <span class="toc-text">数据标记的工作方式</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%86%E5%8C%BA%E3%80%81%E7%B4%A2%E5%BC%95%E3%80%81%E6%A0%87%E8%AE%B0%E5%92%8C%E5%8E%8B%E7%BC%A9%E6%95%B0%E6%8D%AE%E7%9A%84%E5%8D%8F%E5%90%8C%E6%80%BB%E7%BB%93"><span class="toc-number">1.8.</span> <span class="toc-text">分区、索引、标记和压缩数据的协同总结</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%86%99%E5%85%A5%E8%BF%87%E7%A8%8B"><span class="toc-number">1.8.1.</span> <span class="toc-text">写入过程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9F%A5%E8%AF%A2%E8%BF%87%E7%A8%8B"><span class="toc-number">1.8.2.</span> <span class="toc-text">查询过程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%95%B0%E6%8D%AE%E6%A0%87%E8%AE%B0%E4%B8%8E%E5%8E%8B%E7%BC%A9%E6%95%B0%E6%8D%AE%E5%9D%97%E7%9A%84%E5%AF%B9%E5%BA%94%E5%85%B3%E7%B3%BB"><span class="toc-number">1.8.3.</span> <span class="toc-text">数据标记与压缩数据块的对应关系</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E5%85%B6%E5%AE%83%E5%B8%B8%E8%A7%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E(%E5%85%AB)/" title="ClickHouse 中其它常见的表引擎">ClickHouse 中其它常见的表引擎</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/" title="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析">ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E7%9A%84%E6%95%B0%E6%8D%AE%E6%9F%A5%E8%AF%A2%E4%BB%A5%E5%8F%8A%E5%90%84%E7%A7%8D%E5%AD%90%E5%8F%A5(%E4%B9%9D)/" title="ClickHouse 中的数据查询以及各种子句">ClickHouse 中的数据查询以及各种子句</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B9%8B%20MergeTree%20%E5%AE%B6%E6%97%8F%E4%B8%AD%E7%9A%84%E5%85%B6%E5%AE%83%E8%A1%A8%E5%BC%95%E6%93%8E(%E4%B8%83)/" title="ClickHouse 之 MergeTree 家族中的其它表引擎">ClickHouse 之 MergeTree 家族中的其它表引擎</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E5%85%B6%E5%AE%83%E7%9A%84%E4%B8%80%E4%BA%9B%E6%93%8D%E4%BD%9C%E5%87%BD%E6%95%B0%20(%E5%8D%81%E4%BA%94)/" title="ClickHouse 其它的一些操作函数">ClickHouse 其它的一些操作函数</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2020 - 2023 By wenwen</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.umd.min.js"></script><div class="js-pjax"></div><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-nest.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="is-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据库加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div><hr/><div id="local-search-results"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></body></html>
