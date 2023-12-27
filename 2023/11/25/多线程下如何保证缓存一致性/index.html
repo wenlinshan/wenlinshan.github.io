@@ -1,0 +1,213 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"><title>多线程下如何保证缓存一致性 | 热心市民温温</title><meta name="author" content="wenwen"><meta name="copyright" content="wenwen"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="缓存维护方案一假设有一写（线程A）一读（线程B）操作，先操作缓存，在操作数据库。，如下流程图所示： 1）线程A发起一个写操作，第一步del cache 2）线程A第二步写入新数据到DB 3）线程B发起一个读操作，cache miss， 4）线程B从DB获取最新数据 5）请求B同时set cache 这样看，没啥问题。我们再看第二个流程图，如下：  1）线程A发起一个写操作，第一步del cache">
+<meta property="og:type" content="article">
+<meta property="og:title" content="多线程下如何保证缓存一致性">
+<meta property="og:url" content="https://hesay.cn/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/index.html">
+<meta property="og:site_name" content="热心市民温温">
+<meta property="og:description" content="缓存维护方案一假设有一写（线程A）一读（线程B）操作，先操作缓存，在操作数据库。，如下流程图所示： 1）线程A发起一个写操作，第一步del cache 2）线程A第二步写入新数据到DB 3）线程B发起一个读操作，cache miss， 4）线程B从DB获取最新数据 5）请求B同时set cache 这样看，没啥问题。我们再看第二个流程图，如下：  1）线程A发起一个写操作，第一步del cache">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://hesay.cn/img/favicon.png">
+<meta property="article:published_time" content="2023-11-24T16:00:00.000Z">
+<meta property="article:modified_time" content="2023-11-24T16:00:00.000Z">
+<meta property="article:author" content="wenwen">
+<meta property="article:tag" content="cloud">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://hesay.cn/img/favicon.png"><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://hesay.cn/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css" media="print" onload="this.media='all'"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.min.css" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = { 
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"languages":{"hits_empty":"找不到您查询的内容：${query}"}},
+  translate: undefined,
+  noticeOutdate: undefined,
+  highlight: {"plugin":"highlighjs","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false},
+  copy: {
+    success: '复制成功',
+    error: '复制错误',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  date_suffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  source: {
+    justifiedGallery: {
+      js: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.js',
+      css: 'https://cdn.jsdelivr.net/npm/flickr-justified-gallery/dist/fjGallery.min.css'
+    }
+  },
+  isPhotoFigcaption: false,
+  islazyload: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  }
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '多线程下如何保证缓存一致性',
+  isPost: true,
+  isHome: false,
+  isHighlightShrink: false,
+  isToc: true,
+  postUpdate: '2023-11-25 00:00:00'
+}</script><noscript><style type="text/css">
+  #nav {
+    opacity: 1
+  }
+  .justified-gallery img {
+    opacity: 1
+  }
+
+  #recent-posts time,
+  #post-meta time {
+    display: inline !important
+  }
+</style></noscript><script>(win=>{
+    win.saveToLocal = {
+      set: function setWithExpiry(key, value, ttl) {
+        if (ttl === 0) return
+        const now = new Date()
+        const expiryDay = ttl * 86400000
+        const item = {
+          value: value,
+          expiry: now.getTime() + expiryDay,
+        }
+        localStorage.setItem(key, JSON.stringify(item))
+      },
+
+      get: function getWithExpiry(key) {
+        const itemStr = localStorage.getItem(key)
+
+        if (!itemStr) {
+          return undefined
+        }
+        const item = JSON.parse(itemStr)
+        const now = new Date()
+
+        if (now.getTime() > item.expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return item.value
+      }
+    }
+  
+    win.getScript = url => new Promise((resolve, reject) => {
+      const script = document.createElement('script')
+      script.src = url
+      script.async = true
+      script.onerror = reject
+      script.onload = script.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        script.onload = script.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(script)
+    })
+  
+    win.getCSS = (url,id = false) => new Promise((resolve, reject) => {
+      const link = document.createElement('link')
+      link.rel = 'stylesheet'
+      link.href = url
+      if (id) link.id = id
+      link.onerror = reject
+      link.onload = link.onreadystatechange = function() {
+        const loadState = this.readyState
+        if (loadState && loadState !== 'loaded' && loadState !== 'complete') return
+        link.onload = link.onreadystatechange = null
+        resolve()
+      }
+      document.head.appendChild(link)
+    })
+  
+      win.activateDarkMode = function () {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      win.activateLightMode = function () {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+      const t = saveToLocal.get('theme')
+    
+          if (t === 'dark') activateDarkMode()
+          else if (t === 'light') activateLightMode()
+        
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        if (asideStatus === 'hide') {
+          document.documentElement.classList.add('hide-aside')
+        } else {
+          document.documentElement.classList.remove('hide-aside')
+        }
+      }
+    
+    const detectApple = () => {
+      if(/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)){
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+    })(window)</script><meta name="generator" content="Hexo 6.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img is-center"><img src="/img/favicon.png" onerror="onerror=null;src='/img/friend_404.gif'" alt="avatar"/></div><div class="sidebar-site-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">35</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">7</div></a></div><hr/><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fa fa-graduation-cap"></i><span> 博文</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></li></ul></div></div></div></div><div class="post" id="body-wrap"><header class="not-top-img" id="page-header"><nav id="nav"><span id="blog-info"><a href="/" title="热心市民温温"><span class="site-name">热心市民温温</span></a></span><div id="menus"><div id="search-button"><a class="site-page social-icon search" href="javascript:void(0);"><i class="fas fa-search fa-fw"></i><span> 搜索</span></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page group" href="javascript:void(0);"><i class="fa-fw fa fa-graduation-cap"></i><span> 博文</span><i class="fas fa-chevron-down"></i></a><ul class="menus_item_child"><li><a class="site-page child" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></li><li><a class="site-page child" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></li><li><a class="site-page child" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></li></ul></div></div><div id="toggle-menu"><a class="site-page" href="javascript:void(0);"><i class="fas fa-bars fa-fw"></i></a></div></div></nav></header><main class="layout" id="content-inner"><div id="post"><div id="post-info"><h1 class="post-title">多线程下如何保证缓存一致性</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2023-11-24T16:00:00.000Z" title="发表于 2023-11-25 00:00:00">2023-11-25</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2023-11-24T16:00:00.000Z" title="更新于 2023-11-25 00:00:00">2023-11-25</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/cloud/">cloud</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title="多线程下如何保证缓存一致性"><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">阅读量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div><article class="post-content" id="article-container"><h2 id="缓存维护方案一"><a href="#缓存维护方案一" class="headerlink" title="缓存维护方案一"></a>缓存维护方案一</h2><p>假设有一写（线程A）一读（线程B）操作，<strong>先操作缓存，在操作数据库</strong>。，如下流程图所示：<img src="/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/image-20231227135745280.png" alt="image-20231227135745280"></p>
+<p>1）线程A发起一个写操作，第一步del cache</p>
+<p>2）线程A第二步写入新数据到DB</p>
+<p>3）线程B发起一个读操作，cache miss，</p>
+<p>4）线程B从DB获取最新数据</p>
+<p>5）请求B同时set cache</p>
+<p><strong>这样看，没啥问题</strong>。我们再看第二个流程图，如下：</p>
+<p><img src="/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/image-20231227142217536.png" alt="image-20231227142217536"></p>
+<p>1）线程A发起一个写操作，第一步del cache</p>
+<p>2）此时线程B发起一个读操作，cache miss</p>
+<p>3）线程B继续读DB，读出来一个老数据</p>
+<p>4）然后老数据入cache</p>
+<p>5）线程A写入了最新的数据</p>
+<p>OK，酱紫，就有问题了吧，老数据入到缓存了，<strong>每次读都是老数据啦，缓存与数据与数据库数据不一致</strong>。</p>
+<h2 id="缓存维护方案二"><a href="#缓存维护方案二" class="headerlink" title="缓存维护方案二"></a>缓存维护方案二</h2><p>双写操作，<strong>先操作缓存，在操作数据库</strong>。</p>
+<p><img src="/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/image-20231227140219422.png" alt="image-20231227140219422"></p>
+<p>1）线程A发起一个写操作，第一步set cache</p>
+<p>2）线程A第二步写入新数据到DB</p>
+<p>3）线程B发起一个写操作，set cache，</p>
+<p>4）线程B第二步写入新数据到DB</p>
+<p><strong>这样看，也没啥问题。</strong>，但是有时候可能事与愿违，我们再看第二个流程图，如下:</p>
+<p><img src="/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/image-20231227140243335.png" alt="image-20231227140243335"></p>
+<p>1）线程A发起一个写操作，第一步set cache</p>
+<p>2）线程B发起一个写操作，第一步setcache</p>
+<p>3）线程B写入数据库到DB</p>
+<p>4）线程A写入数据库到DB</p>
+<p>执行完后，缓存保存的是B操作后的数据，数据库是A操作后的数据，<strong>缓存和数据库数据不一致</strong>。</p>
+<h2 id="缓存维护方案三"><a href="#缓存维护方案三" class="headerlink" title="缓存维护方案三"></a>缓存维护方案三</h2><p>一写（线程A）一读（线程B）操作，<strong>先操作数据库，再操作缓存</strong>。</p>
+<p><img src="/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/image-20231227140404264.png" alt="image-20231227140404264"></p>
+<p>1）线程A发起一个写操作，第一步write DB</p>
+<p>2）线程A第二步del cache</p>
+<p>3）线程B发起一个读操作，cache miss</p>
+<p>4）线程B从DB获取最新数据</p>
+<p>5）线程B同时set cache</p>
+<p>这种方案<strong>没有明显的并发问题</strong>，但是有可能<strong>步骤二删除缓存失败</strong>，虽然概率比较小，<strong>优于方案一和方案二</strong>，平时工作中也是使用方案三。</p>
+<p>综上对比，我们一般采用方案三，但是有没有完美全解决方案三的弊端的方法呢？</p>
+<h2 id="缓存维护方案四"><a href="#缓存维护方案四" class="headerlink" title="缓存维护方案四"></a>缓存维护方案四</h2><p>这个是方案三的改进方案，都是先操作数据库再操作缓存，我们来看一下流程图：<img src="/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/image-20231227140524111.png" alt="image-20231227140524111"></p>
+<p>通过数据库的<strong>binlog</strong>来<strong>异步淘汰key</strong>，以mysql为例 可以<strong>使用阿里的canal将binlog日志采集发送到MQ队列</strong>里面，然后<strong>通过ACK机制 确认处理</strong> 这条更新消息，删除缓存，保证数据缓存一致性。</p>
+<p>但是呢还有个<strong>问题，如果是主从数据库呢</strong>？</p>
+<h2 id="缓存维护方案五"><a href="#缓存维护方案五" class="headerlink" title="缓存维护方案五"></a>缓存维护方案五</h2><p>主从DB问题：因为主从DB同步存在同时延时时间如果删除缓存之后，数据同步到备库之前已经有请求过来时，<strong>会从备库中读到脏数据</strong>，如何解决呢？解决方案如下流程图：</p>
+<p><img src="/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/image-20231227140704618.png" alt="image-20231227140704618"></p>
+<h2 id="缓存维护总结"><a href="#缓存维护总结" class="headerlink" title="缓存维护总结"></a>缓存维护总结</h2><p>综上所述，在分布式系统中，缓存和数据库同时存在时，如果有写操作的时候，<strong>先操作数据库，再操作缓存</strong>。如下：</p>
+<p>（1）读取缓存中是否有相关数据</p>
+<p>（2）如果缓存中有相关数据value，则返回</p>
+<p>（3）如果缓存中没有相关数据，则从数据库读取相关数据放入缓存中key-&gt;value，再返回</p>
+<p>（4）如果有更新数据，则先更新数据，再删除缓存</p>
+<p>（5）为了保证第四步删除缓存成功，使用binlog异步删除</p>
+<p>（6）如果是主从数据库，binglog取自于从库</p>
+<p>（7）如果是一主多从，每个从库都要采集binlog，然后消费端收到最后一台binlog数据才删除缓存</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta">文章作者: </span><span class="post-copyright-info"><a href="https://hesay.cn">wenwen</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta">文章链接: </span><span class="post-copyright-info"><a href="https://hesay.cn/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/">https://hesay.cn/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta">版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来自 <a href="https://hesay.cn" target="_blank">热心市民温温</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/cloud/">cloud</a></div><div class="post_share"><div class="social-share" data-image="/img/favicon.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><div class="next-post pull-full"><a href="/2023/07/25/spring%E4%B8%AD%E5%A4%9A%E7%BA%BF%E7%A8%8B%E6%83%85%E5%86%B5%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E4%BA%8B%E5%8A%A1/" title="spring中多线程情况下如何保证事务"><div class="cover" style="background: var(--default-bg-color)"></div><div class="pagination-info"><div class="label">下一篇</div><div class="next_info">spring中多线程情况下如何保证事务</div></div></a></div></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><div><a href="/2021/07/22/fastdfs%E5%BA%94%E7%94%A8-fastdfs%E5%BA%94%E7%94%A8/" title="fastdfs应用"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2021-07-22</div><div class="title">fastdfs应用</div></div></a></div><div><a href="/2021/08/17/springboot%20%E4%BC%98%E9%9B%85%E7%9A%84%E5%AE%9E%E7%8E%B0%E7%BB%9F%E4%B8%80%E8%BF%94%E5%9B%9E%E5%A4%84%E7%90%86-springbootyou-ya-de-shi-xian-tong-yi-fan-hui-chu-li/" title="springboot 优雅的实现统一返回处理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2021-08-17</div><div class="title">springboot 优雅的实现统一返回处理</div></div></a></div><div><a href="/2021/05/12/springboot+redisson%E5%AE%9E%E7%8E%B0%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81-springbootredisson-shi-xian-fen-bu-shi-suo/" title="springboot+redisson实现分布式锁"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2021-05-12</div><div class="title">springboot+redisson实现分布式锁</div></div></a></div><div><a href="/2021/08/18/%E6%B7%B1%E5%85%A5%E7%90%86%E8%A7%A3Redis-shen-ru-li-jie-redis/" title="深入理解Redis"><div class="cover" style="background: var(--default-bg-color)"></div><div class="content is-center"><div class="date"><i class="far fa-calendar-alt fa-fw"></i> 2021-08-18</div><div class="title">深入理解Redis</div></div></a></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info"><div class="is-center"><div class="avatar-img"><img src="/img/favicon.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info__name">wenwen</div><div class="author-info__description"></div></div><div class="card-info-data site-data is-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">35</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">7</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">7</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/wenlinshan"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">码海无涯。。。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E7%BB%B4%E6%8A%A4%E6%96%B9%E6%A1%88%E4%B8%80"><span class="toc-number">1.</span> <span class="toc-text">缓存维护方案一</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E7%BB%B4%E6%8A%A4%E6%96%B9%E6%A1%88%E4%BA%8C"><span class="toc-number">2.</span> <span class="toc-text">缓存维护方案二</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E7%BB%B4%E6%8A%A4%E6%96%B9%E6%A1%88%E4%B8%89"><span class="toc-number">3.</span> <span class="toc-text">缓存维护方案三</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E7%BB%B4%E6%8A%A4%E6%96%B9%E6%A1%88%E5%9B%9B"><span class="toc-number">4.</span> <span class="toc-text">缓存维护方案四</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E7%BB%B4%E6%8A%A4%E6%96%B9%E6%A1%88%E4%BA%94"><span class="toc-number">5.</span> <span class="toc-text">缓存维护方案五</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%BC%93%E5%AD%98%E7%BB%B4%E6%8A%A4%E6%80%BB%E7%BB%93"><span class="toc-number">6.</span> <span class="toc-text">缓存维护总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/11/25/%E5%A4%9A%E7%BA%BF%E7%A8%8B%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E7%BC%93%E5%AD%98%E4%B8%80%E8%87%B4%E6%80%A7/" title="多线程下如何保证缓存一致性">多线程下如何保证缓存一致性</a><time datetime="2023-11-24T16:00:00.000Z" title="发表于 2023-11-25 00:00:00">2023-11-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/07/25/spring%E4%B8%AD%E5%A4%9A%E7%BA%BF%E7%A8%8B%E6%83%85%E5%86%B5%E4%B8%8B%E5%A6%82%E4%BD%95%E4%BF%9D%E8%AF%81%E4%BA%8B%E5%8A%A1/" title="spring中多线程情况下如何保证事务">spring中多线程情况下如何保证事务</a><time datetime="2023-07-25T07:34:45.332Z" title="发表于 2023-07-25 15:34:45">2023-07-25</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E5%85%B6%E5%AE%83%E5%B8%B8%E8%A7%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E(%E5%85%AB)/" title="ClickHouse 中其它常见的表引擎(八)">ClickHouse 中其它常见的表引擎(八)</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E6%9C%80%E9%87%8D%E8%A6%81%E7%9A%84%E8%A1%A8%E5%BC%95%E6%93%8E%EF%BC%9AMergeTree%20%E7%9A%84%E6%B7%B1%E5%BA%A6%E5%8E%9F%E7%90%86%E8%A7%A3%E6%9E%90(%E5%85%AD)/" title="ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析(六)">ClickHouse 中最重要的表引擎：MergeTree 的深度原理解析(六)</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2023/04/11/ClickHouse%20%E4%B8%AD%E7%9A%84%E5%B8%B8%E7%94%A8%E8%81%9A%E5%90%88%E5%87%BD%E6%95%B0(%E5%8D%81%E4%B8%80)/" title="ClickHouse 中的常用聚合函数(十一)">ClickHouse 中的常用聚合函数(十一)</a><time datetime="2023-04-11T09:04:31.000Z" title="发表于 2023-04-11 17:04:31">2023-04-11</time></div></div></div></div></div></div></main><footer id="footer"><div id="footer-wrap"><div class="copyright">&copy;2020 - 2023 By wenwen</div><div class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly</a></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="浅色和深色模式转换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside_config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox.umd.min.js"></script><div class="js-pjax"></div><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-nest.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><span id="loading-status"></span><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="is-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据库加载中</span></div><div class="search-wrap"><div id="local-search-input"><div class="local-search-box"><input class="local-search-box--input" placeholder="搜索文章" type="text"/></div></div><hr/><div id="local-search-results"></div></div></div><div id="search-mask"></div><script src="/js/search/local-search.js"></script></div></body></html>
